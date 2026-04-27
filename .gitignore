@@ -1,0 +1,17 @@
+# Build artifacts
+target/
+Cargo.lock
+
+# Claude files
+CLAUDE.md
+.claude/
+memory/
+
+# Design documents
+*.md
+
+# Test files
+tests/
+
+# Font placeholders (실제 폰트 파일로 교체 필요)
+assets/fonts/*.ttf
