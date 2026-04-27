@@ -1,6 +1,8 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
+// 이후 태스크에서 연결될 항목들에 대한 임시 허용
+#![allow(dead_code, unused_imports)]
 
 mod app;
 mod adb;
