@@ -12,10 +12,12 @@ const COL_TIME: f32 = 160.0;
 const COL_LV: f32 = 32.0;
 const COL_TAG: f32 = 140.0;
 const COL_PID: f32 = 60.0;
-const ROW_HEIGHT: f32 = 20.0;
 const HEADER_HEIGHT: f32 = 24.0;
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
+    let font_size = state.settings.font_size;
+    let row_height = font_size + 8.0;
+
     render_header(ui);
 
     // Extract filter params before entering the borrow scope
@@ -42,7 +44,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .stick_to_bottom(auto_scroll)
-            .show_rows(ui, ROW_HEIGHT, total_rows, |ui, row_range| {
+            .show_rows(ui, row_height, total_rows, |ui, row_range| {
                 let buf = log_buffer.lock().unwrap();
                 let entries = buf.entries();
 
@@ -56,7 +58,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                     if let Some(entry) = entries.get(entry_idx) {
                         let is_selected = selected_log_id == Some(entry.id);
                         let entry_id = entry.id;
-                        if render_row(ui, entry, is_selected, &search_query, case_sensitive)
+                        if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height)
                             .clicked()
                         {
                             clicked_id = Some(entry_id);
@@ -108,10 +110,12 @@ fn render_row(
     is_selected: bool,
     search_query: &str,
     case_sensitive: bool,
+    font_size: f32,
+    row_height: f32,
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
-        ui.allocate_exact_size(egui::vec2(w, ROW_HEIGHT), egui::Sense::click());
+        ui.allocate_exact_size(egui::vec2(w, row_height), egui::Sense::click());
 
     let base_bg = level_row_bg(entry.level);
     let bg = if is_selected {
@@ -123,7 +127,7 @@ fn render_row(
     };
     ui.painter().rect_filled(rect, 0.0, bg);
 
-    let font = FontId::monospace(12.0);
+    let font = FontId::monospace(font_size);
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
 
