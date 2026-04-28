@@ -43,6 +43,11 @@ impl LogBuffer {
     }
 
     #[must_use]
+    pub fn max_size(&self) -> usize {
+        self.max_size
+    }
+
+    #[must_use]
     pub fn entries(&self) -> &VecDeque<LogEntry> {
         &self.entries
     }

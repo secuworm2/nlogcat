@@ -104,6 +104,7 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_log_channel();
         self.drain_device_channel();
+        self.recompute_filter_if_dirty();
 
         ctx.input(|i| {
             if let Some(rect) = i.viewport().inner_rect {
@@ -127,20 +128,51 @@ impl eframe::App for NlogcatApp {
 impl NlogcatApp {
     fn drain_log_channel(&mut self) {
         const MAX_PER_FRAME: usize = 500;
-        let mut entries = Vec::new();
+        let mut new_entries = Vec::new();
         for _ in 0..MAX_PER_FRAME {
             match self.state.log_rx.try_recv() {
-                Ok(entry) => entries.push(entry),
+                Ok(entry) => new_entries.push(entry),
                 Err(_) => break,
             }
         }
-        if !entries.is_empty() {
-            let mut buffer = self.state.log_buffer.lock().unwrap();
-            for entry in entries {
+        if new_entries.is_empty() {
+            return;
+        }
+
+        let mut buffer = self.state.log_buffer.lock().unwrap();
+        let will_evict = buffer.len() + new_entries.len() > buffer.max_size();
+
+        if will_evict || self.state.filter_dirty {
+            for entry in new_entries {
                 buffer.push(entry);
             }
             self.state.filter_dirty = true;
+        } else {
+            let start_idx = buffer.len();
+            for entry in new_entries {
+                buffer.push(entry);
+            }
+            let end_idx = buffer.len();
+            for i in start_idx..end_idx {
+                if let Some(e) = buffer.entries().get(i) {
+                    if crate::engine::filter::FilterEngine::matches(e, &self.state.filter) {
+                        self.state.filtered_indices.push(i);
+                    }
+                }
+            }
         }
+    }
+
+    fn recompute_filter_if_dirty(&mut self) {
+        if !self.state.filter_dirty {
+            return;
+        }
+        let new_indices = {
+            let buffer = self.state.log_buffer.lock().unwrap();
+            crate::engine::filter::FilterEngine::compute_indices(&buffer, &self.state.filter)
+        };
+        self.state.filtered_indices = new_indices;
+        self.state.filter_dirty = false;
     }
 
     fn drain_device_channel(&mut self) {
