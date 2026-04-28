@@ -1,5 +1,15 @@
-use crate::app::AppState;
+use egui::Frame;
 
-pub fn render(ctx: &egui::Context, _state: &mut AppState) {
+use crate::app::AppState;
+use crate::theme::colors::BG_SURFACE;
+
+pub fn render(ctx: &egui::Context, state: &mut AppState) {
+    egui::TopBottomPanel::top("toolbar")
+        .exact_height(40.0)
+        .frame(Frame::none().fill(BG_SURFACE))
+        .show(ctx, |ui| {
+            crate::ui::toolbar::render(ui, state);
+        });
+
     egui::CentralPanel::default().show(ctx, |_ui| {});
 }
