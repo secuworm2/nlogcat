@@ -20,17 +20,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
     render_header(ui);
 
-    // Extract filter params before entering the borrow scope
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
 
     let mut clicked_id: Option<u64> = None;
+    let should_scroll_to_bottom = state.scroll_to_bottom;
 
-    {
+    // Borrow scope: immutable borrows on state.filtered_indices and state.log_buffer.
+    // Returns scroll metrics so we can update state after the borrows are released.
+    let (scroll_offset_y, content_height, visible_height) = {
         let filtered_indices = &state.filtered_indices;
         let log_buffer = &state.log_buffer;
         let selected_log_id = state.selected_log_id;
-        let auto_scroll = state.auto_scroll;
 
         let total_rows = {
             let buf = log_buffer.lock().unwrap();
@@ -41,31 +42,53 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             }
         };
 
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .stick_to_bottom(auto_scroll)
-            .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                let buf = log_buffer.lock().unwrap();
-                let entries = buf.entries();
+        let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
 
-                for row_idx in row_range {
-                    let entry_idx = if filtered_indices.is_empty() {
-                        row_idx
-                    } else {
-                        filtered_indices[row_idx]
-                    };
+        if should_scroll_to_bottom {
+            scroll_area = scroll_area.vertical_scroll_offset(f32::MAX);
+        }
 
-                    if let Some(entry) = entries.get(entry_idx) {
-                        let is_selected = selected_log_id == Some(entry.id);
-                        let entry_id = entry.id;
-                        if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height)
-                            .clicked()
-                        {
-                            clicked_id = Some(entry_id);
-                        }
+        let output = scroll_area.show_rows(ui, row_height, total_rows, |ui, row_range| {
+            let buf = log_buffer.lock().unwrap();
+            let entries = buf.entries();
+
+            for row_idx in row_range {
+                let entry_idx = if filtered_indices.is_empty() {
+                    row_idx
+                } else {
+                    filtered_indices[row_idx]
+                };
+
+                if let Some(entry) = entries.get(entry_idx) {
+                    let is_selected = selected_log_id == Some(entry.id);
+                    let entry_id = entry.id;
+                    if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height)
+                        .clicked()
+                    {
+                        clicked_id = Some(entry_id);
                     }
                 }
-            });
+            }
+        });
+
+        (output.state.offset.y, output.content_size.y, output.inner_rect.height())
+    };
+
+    // Clear the one-shot flag after use
+    if should_scroll_to_bottom {
+        state.scroll_to_bottom = false;
+    }
+
+    // Detect scroll position: at bottom → enable auto_scroll, scrolled up → disable
+    if content_height > 0.0 {
+        let max_scroll = (content_height - visible_height).max(0.0);
+        let at_bottom = scroll_offset_y >= max_scroll - 2.0;
+
+        if at_bottom && !state.auto_scroll {
+            state.auto_scroll = true;
+        } else if !at_bottom && state.auto_scroll {
+            state.auto_scroll = false;
+        }
     }
 
     if let Some(id) = clicked_id {

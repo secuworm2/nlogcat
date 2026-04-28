@@ -16,6 +16,7 @@ pub struct AppState {
     pub filtered_indices: Vec<usize>,
     pub filter_dirty: bool,
     pub auto_scroll: bool,
+    pub scroll_to_bottom: bool,
     pub selected_log_id: Option<u64>,
     pub show_settings: bool,
     pub show_help: bool,
@@ -84,6 +85,7 @@ impl NlogcatApp {
             filtered_indices: Vec::new(),
             filter_dirty: false,
             auto_scroll: settings.auto_scroll,
+            scroll_to_bottom: false,
             selected_log_id: None,
             show_settings: false,
             show_help: false,
@@ -140,6 +142,10 @@ impl NlogcatApp {
         }
         if new_entries.is_empty() {
             return;
+        }
+
+        if self.state.auto_scroll {
+            self.state.scroll_to_bottom = true;
         }
 
         let mut buffer = self.state.log_buffer.lock().unwrap();
