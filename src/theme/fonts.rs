@@ -11,8 +11,17 @@ fn is_valid_font(data: &[u8]) -> bool {
     )
 }
 
+/// NotoSansKR 없을 때 Windows 시스템 한글 폰트 경로 후보
+fn korean_font_fallback_paths() -> &'static [&'static str] {
+    &[
+        "assets/fonts/NotoSansKR-Regular.ttf",
+        r"C:\Windows\Fonts\malgun.ttf",
+        r"C:\Windows\Fonts\gulim.ttc",
+    ]
+}
+
 /// 폰트 파일을 런타임에 로드해 `FontDefinitions`를 구성한다.
-/// 파일이 없거나 유효하지 않으면 egui 기본 폰트로 graceful fallback한다.
+/// 파일이 없거나 유효하지 않으면 시스템 한글 폰트 → egui 기본 폰트 순으로 fallback한다.
 #[must_use]
 pub fn build_font_definitions() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
@@ -21,9 +30,10 @@ pub fn build_font_definitions() -> egui::FontDefinitions {
         .ok()
         .filter(|b| is_valid_font(b));
 
-    let noto = std::fs::read("assets/fonts/NotoSansKR-Regular.ttf")
-        .ok()
-        .filter(|b| is_valid_font(b));
+    // NotoSansKR 우선, 없으면 시스템 한글 폰트로 fallback
+    let korean = korean_font_fallback_paths()
+        .iter()
+        .find_map(|path| std::fs::read(path).ok().filter(|b| is_valid_font(b)));
 
     if let Some(data) = jetbrains {
         fonts
@@ -34,15 +44,16 @@ pub fn build_font_definitions() -> egui::FontDefinitions {
         }
     }
 
-    if let Some(data) = noto {
+    if let Some(data) = korean {
         fonts
             .font_data
-            .insert("NotoSansKR".to_owned(), egui::FontData::from_owned(data));
+            .insert("KoreanFont".to_owned(), egui::FontData::from_owned(data));
+        // 모노스페이스/프로포셔널 패밀리에 한글 폰트를 fallback으로 추가
         if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
-            family.push("NotoSansKR".to_owned());
+            family.push("KoreanFont".to_owned());
         }
         if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-            family.push("NotoSansKR".to_owned());
+            family.push("KoreanFont".to_owned());
         }
     }
 
