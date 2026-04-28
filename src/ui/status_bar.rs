@@ -21,7 +21,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let y = bar_rect.center().y;
 
     // Left: save status / error / normal counts
-    let total = state.log_buffer.lock().unwrap().len();
+    let total = state.log_buffer.lock().map_or(0, |buf| buf.len());
     let filtered = if state.filtered_indices.is_empty() {
         total
     } else {
@@ -31,7 +31,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let save_expired = state
         .save_status
         .as_ref()
-        .map_or(false, |(_, t)| t.elapsed() >= Duration::from_secs(1));
+        .is_some_and(|(_, t)| t.elapsed() >= Duration::from_secs(1));
     if save_expired {
         state.save_status = None;
     }
@@ -43,7 +43,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         (err.clone(), STATUS_ERROR)
     } else {
         (
-            format!("전체 {}줄 | 필터 후 {}줄", total, filtered),
+            format!("전체 {total}줄 | 필터 후 {filtered}줄"),
             TEXT_SECONDARY,
         )
     };
@@ -101,7 +101,7 @@ fn connection_indicator(state: &AppState) -> (String, Color32) {
         if let Some(device) = state.devices.iter().find(|d| &d.serial == serial) {
             let model = device.model.as_deref().unwrap_or("Unknown");
             return (
-                format!("● 연결됨: {} ({})", model, serial),
+                format!("● 연결됨: {model} ({serial})"),
                 STATUS_CONNECTED,
             );
         }

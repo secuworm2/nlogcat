@@ -9,22 +9,19 @@ use crate::theme::colors::{
 const COPY_FEEDBACK_ID: &str = "detail_copy_time";
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
-    let log_id = match state.selected_log_id {
-        Some(id) => id,
-        None => return,
-    };
+    let Some(log_id) = state.selected_log_id else { return };
 
     let entry = {
-        let buffer = state.log_buffer.lock().unwrap();
+        let Ok(buffer) = state.log_buffer.lock() else {
+            state.selected_log_id = None;
+            return;
+        };
         buffer.find_by_id(log_id).cloned()
     };
 
-    let entry = match entry {
-        Some(e) => e,
-        None => {
-            state.selected_log_id = None;
-            return;
-        }
+    let Some(entry) = entry else {
+        state.selected_log_id = None;
+        return;
     };
 
     // ESC to close
@@ -130,7 +127,7 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
     let copy_id = egui::Id::new(COPY_FEEDBACK_ID);
     let copy_time: Option<f64> = ui.ctx().data(|d| d.get_temp(copy_id));
     let now = ui.ctx().input(|i| i.time);
-    let is_copied = copy_time.map_or(false, |t| now - t < 1.0);
+    let is_copied = copy_time.is_some_and(|t| now - t < 1.0);
 
     if is_copied {
         ui.ctx().request_repaint();

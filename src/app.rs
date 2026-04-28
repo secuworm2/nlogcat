@@ -7,6 +7,7 @@ use crate::adb::{list_devices, AdbManager};
 use crate::config::settings::{self, AppSettings, Theme};
 use crate::model::{Device, FilterState, LogBuffer, LogEntry};
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
     pub devices: Vec<Device>,
     pub selected_device: Option<String>,
@@ -28,13 +29,21 @@ pub struct AppState {
     pub search_debounce_until: Option<Instant>,
     pub save_status: Option<(String, Instant)>,
     pub last_error: Option<String>,
+    pub last_error_time: Option<Instant>,
+}
+
+impl AppState {
+    pub fn set_error(&mut self, msg: String) {
+        self.last_error = Some(msg);
+        self.last_error_time = Some(Instant::now());
+    }
 }
 
 pub struct NlogcatApp {
     pub state: AppState,
     device_rx: mpsc::Receiver<Vec<Device>>,
-    // AdbStreamer에 전달하기 위해 보관
     pub log_tx: mpsc::Sender<LogEntry>,
+    adb_manager: Option<AdbManager>,
 }
 
 impl NlogcatApp {
@@ -53,7 +62,12 @@ impl NlogcatApp {
         let (device_poll_tx, mut device_poll_rx) = mpsc::channel::<()>(1);
         let (device_result_tx, device_rx) = mpsc::channel::<Vec<Device>>(4);
 
-        let adb_path = AdbManager::resolve_adb_path(settings.adb_path.as_deref()).ok();
+        let adb_path_result = AdbManager::resolve_adb_path(settings.adb_path.as_deref());
+        let initial_adb_error = adb_path_result.as_ref().err().map(ToString::to_string);
+        let adb_path = adb_path_result.ok();
+        let adb_manager = adb_path
+            .as_ref()
+            .map(|p| AdbManager::new(p.clone()));
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(3));
@@ -66,11 +80,10 @@ impl NlogcatApp {
                 }
                 if let Some(ref path) = adb_path {
                     let path = path.clone();
-                    let devices = tokio::task::spawn_blocking(move || {
-                        list_devices(&path).unwrap_or_default()
-                    })
-                    .await
-                    .unwrap_or_default();
+                    let devices = match tokio::task::spawn_blocking(move || list_devices(&path)).await {
+                        Ok(Ok(d)) => d,
+                        Ok(Err(_)) | Err(_) => Vec::new(),
+                    };
                     if device_result_tx.send(devices).await.is_err() {
                         break;
                     }
@@ -95,16 +108,18 @@ impl NlogcatApp {
             save_requested: false,
             settings,
             device_poll_tx,
-            adb_error: None,
+            adb_error: initial_adb_error,
             search_debounce_until: None,
             save_status: None,
             last_error: None,
+            last_error_time: None,
         };
 
         Self {
             state,
             device_rx,
             log_tx,
+            adb_manager,
         }
     }
 }
@@ -116,6 +131,9 @@ impl eframe::App for NlogcatApp {
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
         self.handle_save_request();
+        self.manage_streaming();
+        self.check_stream_health();
+        self.tick_error_dismiss();
 
         ctx.input(|i| {
             if let Some(rect) = i.viewport().inner_rect {
@@ -154,7 +172,9 @@ impl NlogcatApp {
             self.state.scroll_to_bottom = true;
         }
 
-        let mut buffer = self.state.log_buffer.lock().unwrap();
+        let Ok(mut buffer) = self.state.log_buffer.lock() else {
+            return;
+        };
         let will_evict = buffer.len() + new_entries.len() > buffer.max_size();
 
         if will_evict || self.state.filter_dirty {
@@ -192,7 +212,9 @@ impl NlogcatApp {
             return;
         }
         let new_indices = {
-            let buffer = self.state.log_buffer.lock().unwrap();
+            let Ok(buffer) = self.state.log_buffer.lock() else {
+                return;
+            };
             crate::engine::filter::FilterEngine::compute_indices(&buffer, &self.state.filter)
         };
         self.state.filtered_indices = new_indices;
@@ -210,7 +232,6 @@ impl NlogcatApp {
             return;
         }
         self.state.save_requested = false;
-        self.state.last_error = None;
 
         let path = rfd::FileDialog::new()
             .add_filter("Log", &["txt", "log"])
@@ -221,7 +242,10 @@ impl NlogcatApp {
         };
 
         let content = {
-            let buffer = self.state.log_buffer.lock().unwrap();
+            let Ok(buffer) = self.state.log_buffer.lock() else {
+                self.state.set_error("저장 실패: 버퍼 잠금 오류".to_string());
+                return;
+            };
             let mut out = String::with_capacity(buffer.len() * 80);
             for entry in buffer.entries() {
                 out.push_str(&entry.raw);
@@ -240,7 +264,71 @@ impl NlogcatApp {
                 self.state.save_status = Some((format!("저장 완료: {filename}"), Instant::now()));
             }
             Err(e) => {
-                self.state.last_error = Some(format!("저장 실패: {e}"));
+                self.state.set_error(format!("저장 실패: {e}"));
+            }
+        }
+    }
+
+    fn manage_streaming(&mut self) {
+        let Some(serial) = self.state.selected_device.clone() else {
+            if let Some(ref mut mgr) = self.adb_manager {
+                if mgr.is_streaming() {
+                    mgr.stop_stream();
+                }
+            }
+            if self.state.is_streaming {
+                self.state.is_streaming = false;
+            }
+            return;
+        };
+
+        match self.adb_manager {
+            None => {
+                if self.state.is_streaming {
+                    self.state.is_streaming = false;
+                    self.state
+                        .set_error("ADB를 찾을 수 없습니다".to_string());
+                }
+            }
+            Some(ref mut mgr) => {
+                if self.state.is_streaming && !mgr.is_streaming() {
+                    match mgr.start_stream(&serial, self.log_tx.clone()) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.state.is_streaming = false;
+                            self.state.set_error(e.to_string());
+                        }
+                    }
+                } else if !self.state.is_streaming && mgr.is_streaming() {
+                    mgr.stop_stream();
+                }
+            }
+        }
+    }
+
+    fn check_stream_health(&mut self) {
+        if !self.state.is_streaming {
+            return;
+        }
+        let finished = self
+            .adb_manager
+            .as_ref()
+            .is_some_and(AdbManager::task_finished);
+        if finished {
+            if let Some(ref mut mgr) = self.adb_manager {
+                mgr.stop_stream();
+            }
+            self.state.is_streaming = false;
+            self.state
+                .set_error("스트림이 예기치 않게 종료되었습니다".to_string());
+        }
+    }
+
+    fn tick_error_dismiss(&mut self) {
+        if let Some(t) = self.state.last_error_time {
+            if t.elapsed() >= Duration::from_secs(3) {
+                self.state.last_error = None;
+                self.state.last_error_time = None;
             }
         }
     }

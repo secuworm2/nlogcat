@@ -59,7 +59,7 @@ impl LogBuffer {
         if id < first_id {
             return None;
         }
-        let idx = (id - first_id) as usize;
+        let idx = usize::try_from(id - first_id).ok()?;
         self.entries.get(idx).filter(|e| e.id == id)
     }
 }

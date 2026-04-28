@@ -50,8 +50,7 @@ fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
             let label = d
                 .model
                 .as_deref()
-                .map(|m| format!("{} ({})", m, d.serial))
-                .unwrap_or_else(|| d.serial.clone());
+                .map_or_else(|| d.serial.clone(), |m| format!("{} ({})", m, d.serial));
             (d.serial.clone(), label)
         })
         .collect();
@@ -62,14 +61,16 @@ fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
         .selected_device
         .as_deref()
         .and_then(|serial| devices_info.iter().find(|(s, _)| s == serial))
-        .map(|(_, label)| label.clone())
-        .unwrap_or_else(|| {
-            if has_devices {
-                "디바이스 선택...".to_string()
-            } else {
-                "디바이스 없음".to_string()
-            }
-        });
+        .map_or_else(
+            || {
+                if has_devices {
+                    "디바이스 선택...".to_string()
+                } else {
+                    "디바이스 없음".to_string()
+                }
+            },
+            |(_, label)| label.clone(),
+        );
 
     ui.vertical(|ui| {
         ui.heading("디바이스를 연결하세요");

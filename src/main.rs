@@ -15,7 +15,13 @@ mod theme;
 use app::NlogcatApp;
 
 fn main() {
-    let rt = tokio::runtime::Runtime::new().expect("tokio runtime 생성 실패");
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("tokio runtime 생성 실패: {e}");
+            std::process::exit(1);
+        }
+    };
     let _guard = rt.enter();
 
     let settings = crate::config::settings::load();
@@ -27,10 +33,11 @@ fn main() {
         ..Default::default()
     };
 
-    eframe::run_native(
+    if let Err(e) = eframe::run_native(
         "nlogcat",
         native_options,
         Box::new(|cc| Ok(Box::new(NlogcatApp::new(cc)))),
-    )
-    .expect("eframe 실행 실패");
+    ) {
+        eprintln!("eframe 실행 실패: {e}");
+    }
 }

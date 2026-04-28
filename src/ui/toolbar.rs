@@ -15,8 +15,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             let label = d
                 .model
                 .as_deref()
-                .map(|m| format!("{} ({})", m, d.serial))
-                .unwrap_or_else(|| d.serial.clone());
+                .map_or_else(|| d.serial.clone(), |m| format!("{} ({})", m, d.serial));
             (d.serial.clone(), label)
         })
         .collect();
@@ -27,14 +26,16 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         .selected_device
         .as_deref()
         .and_then(|serial| devices_info.iter().find(|(s, _)| s == serial))
-        .map(|(_, label)| label.clone())
-        .unwrap_or_else(|| {
-            if has_devices {
-                "디바이스 선택...".to_string()
-            } else {
-                "디바이스 없음".to_string()
-            }
-        });
+        .map_or_else(
+            || {
+                if has_devices {
+                    "디바이스 선택...".to_string()
+                } else {
+                    "디바이스 없음".to_string()
+                }
+            },
+            |(_, label)| label.clone(),
+        );
 
     ui.horizontal_centered(|ui| {
         ui.add_space(8.0);
@@ -66,7 +67,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         ui.add_space(4.0);
 
         if danger_button(ui, "🗑 초기화").clicked() {
-            state.log_buffer.lock().unwrap().clear();
+            if let Ok(mut buf) = state.log_buffer.lock() {
+                buf.clear();
+            }
             state.filtered_indices.clear();
             state.filter_dirty = true;
         }

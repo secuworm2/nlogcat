@@ -34,9 +34,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         let selected_log_id = state.selected_log_id;
 
         let total_rows = {
-            let buf = log_buffer.lock().unwrap();
+            let buf_len = log_buffer.lock().map_or(0, |buf| buf.len());
             if filtered_indices.is_empty() {
-                buf.len()
+                buf_len
             } else {
                 filtered_indices.len()
             }
@@ -49,7 +49,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         }
 
         let output = scroll_area.show_rows(ui, row_height, total_rows, |ui, row_range| {
-            let buf = log_buffer.lock().unwrap();
+            let Ok(buf) = log_buffer.lock() else { return; };
             let entries = buf.entries();
 
             for row_idx in row_range {

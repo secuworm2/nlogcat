@@ -11,7 +11,7 @@ fn is_valid_font(data: &[u8]) -> bool {
     )
 }
 
-/// NotoSansKR 없을 때 Windows 시스템 한글 폰트 경로 후보
+/// `NotoSansKR` 없을 때 Windows 시스템 한글 폰트 경로 후보
 fn korean_font_fallback_paths() -> &'static [&'static str] {
     &[
         "assets/fonts/NotoSansKR-Regular.ttf",
