@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use egui::{Color32, FontId, Sense};
 
 use crate::app::AppState;
 use crate::theme::colors::{
-    BG_HOVER, BG_SURFACE, STATUS_CONNECTED, STATUS_DISCONNECTED, TEXT_PRIMARY, TEXT_SECONDARY,
+    BG_HOVER, BG_SURFACE, STATUS_CONNECTED, STATUS_DISCONNECTED, STATUS_ERROR, TEXT_PRIMARY,
+    TEXT_SECONDARY,
 };
 
 const HEIGHT: f32 = 24.0;
@@ -17,19 +20,40 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let font = FontId::proportional(FONT_SIZE);
     let y = bar_rect.center().y;
 
-    // Left: total / filtered counts
+    // Left: save status / error / normal counts
     let total = state.log_buffer.lock().unwrap().len();
     let filtered = if state.filtered_indices.is_empty() {
         total
     } else {
         state.filtered_indices.len()
     };
+
+    let save_expired = state
+        .save_status
+        .as_ref()
+        .map_or(false, |(_, t)| t.elapsed() >= Duration::from_secs(1));
+    if save_expired {
+        state.save_status = None;
+    }
+
+    let (left_text, left_color): (String, Color32) = if let Some((ref msg, _)) = state.save_status
+    {
+        (msg.clone(), TEXT_PRIMARY)
+    } else if let Some(ref err) = state.last_error {
+        (err.clone(), STATUS_ERROR)
+    } else {
+        (
+            format!("전체 {}줄 | 필터 후 {}줄", total, filtered),
+            TEXT_SECONDARY,
+        )
+    };
+
     ui.painter().text(
         egui::pos2(bar_rect.min.x + 8.0, y),
         egui::Align2::LEFT_CENTER,
-        format!("전체 {}줄 | 필터 후 {}줄", total, filtered),
+        left_text,
         font.clone(),
-        TEXT_SECONDARY,
+        left_color,
     );
 
     // Center: connection status

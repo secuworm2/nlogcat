@@ -1,3 +1,4 @@
+use std::io::Write as IoWrite;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -25,6 +26,8 @@ pub struct AppState {
     pub device_poll_tx: mpsc::Sender<()>,
     pub adb_error: Option<String>,
     pub search_debounce_until: Option<Instant>,
+    pub save_status: Option<(String, Instant)>,
+    pub last_error: Option<String>,
 }
 
 pub struct NlogcatApp {
@@ -94,6 +97,8 @@ impl NlogcatApp {
             device_poll_tx,
             adb_error: None,
             search_debounce_until: None,
+            save_status: None,
+            last_error: None,
         };
 
         Self {
@@ -110,6 +115,7 @@ impl eframe::App for NlogcatApp {
         self.drain_device_channel();
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
+        self.handle_save_request();
 
         ctx.input(|i| {
             if let Some(rect) = i.viewport().inner_rect {
@@ -196,6 +202,46 @@ impl NlogcatApp {
     fn drain_device_channel(&mut self) {
         while let Ok(devices) = self.device_rx.try_recv() {
             self.state.devices = devices;
+        }
+    }
+
+    fn handle_save_request(&mut self) {
+        if !self.state.save_requested {
+            return;
+        }
+        self.state.save_requested = false;
+        self.state.last_error = None;
+
+        let path = rfd::FileDialog::new()
+            .add_filter("Log", &["txt", "log"])
+            .save_file();
+
+        let Some(path) = path else {
+            return;
+        };
+
+        let content = {
+            let buffer = self.state.log_buffer.lock().unwrap();
+            let mut out = String::with_capacity(buffer.len() * 80);
+            for entry in buffer.entries() {
+                out.push_str(&entry.raw);
+                out.push('\n');
+            }
+            out
+        };
+
+        match std::fs::File::create(&path).and_then(|mut f| f.write_all(content.as_bytes())) {
+            Ok(()) => {
+                let filename = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("파일")
+                    .to_string();
+                self.state.save_status = Some((format!("저장 완료: {filename}"), Instant::now()));
+            }
+            Err(e) => {
+                self.state.last_error = Some(format!("저장 실패: {e}"));
+            }
         }
     }
 }
