@@ -4,7 +4,9 @@ pub mod parser;
 pub mod streamer;
 
 pub use device::{get_device_model, list_devices};
+pub use manager::AdbManager;
 pub use parser::LogParser;
+pub use streamer::AdbStreamer;
 
 #[derive(thiserror::Error, Debug)]
 pub enum AdbError {
