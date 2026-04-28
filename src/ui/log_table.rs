@@ -1,6 +1,7 @@
 use egui::{Color32, FontId};
 
 use crate::app::AppState;
+use crate::engine::search::SearchEngine;
 use crate::model::LogEntry;
 use crate::theme::colors::{
     level_label_color, level_row_bg, BG_SELECTED, BG_SURFACE, TEXT_PRIMARY, TEXT_SECONDARY,
@@ -16,6 +17,10 @@ const HEADER_HEIGHT: f32 = 24.0;
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     render_header(ui);
+
+    // Extract filter params before entering the borrow scope
+    let search_query = state.filter.search_query.clone();
+    let case_sensitive = state.filter.case_sensitive;
 
     let mut clicked_id: Option<u64> = None;
 
@@ -51,7 +56,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                     if let Some(entry) = entries.get(entry_idx) {
                         let is_selected = selected_log_id == Some(entry.id);
                         let entry_id = entry.id;
-                        if render_row(ui, entry, is_selected).clicked() {
+                        if render_row(ui, entry, is_selected, &search_query, case_sensitive)
+                            .clicked()
+                        {
                             clicked_id = Some(entry_id);
                         }
                     }
@@ -95,7 +102,13 @@ fn header_cols(x: f32) -> [(f32, &'static str); 5] {
     ]
 }
 
-fn render_row(ui: &mut egui::Ui, entry: &LogEntry, is_selected: bool) -> egui::Response {
+fn render_row(
+    ui: &mut egui::Ui,
+    entry: &LogEntry,
+    is_selected: bool,
+    search_query: &str,
+    case_sensitive: bool,
+) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(w, ROW_HEIGHT), egui::Sense::click());
@@ -110,13 +123,12 @@ fn render_row(ui: &mut egui::Ui, entry: &LogEntry, is_selected: bool) -> egui::R
     };
     ui.painter().rect_filled(rect, 0.0, bg);
 
-    let painter = ui.painter();
     let font = FontId::monospace(12.0);
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
 
-    // Time
-    painter.text(
+    // Time (no highlighting)
+    ui.painter().text(
         egui::pos2(x, y),
         egui::Align2::LEFT_CENTER,
         format!("{} {}", entry.date, entry.time),
@@ -124,8 +136,8 @@ fn render_row(ui: &mut egui::Ui, entry: &LogEntry, is_selected: bool) -> egui::R
         TEXT_SECONDARY,
     );
 
-    // Level badge
-    painter.text(
+    // Level badge (no highlighting)
+    ui.painter().text(
         egui::pos2(x + COL_TIME, y),
         egui::Align2::LEFT_CENTER,
         entry.level.label(),
@@ -133,17 +145,19 @@ fn render_row(ui: &mut egui::Ui, entry: &LogEntry, is_selected: bool) -> egui::R
         level_label_color(entry.level),
     );
 
-    // Tag
-    painter.text(
-        egui::pos2(x + COL_TIME + COL_LV, y),
-        egui::Align2::LEFT_CENTER,
+    // Tag — highlight if search query matches
+    paint_cell(
+        ui,
         &entry.tag,
-        font.clone(),
         TEXT_PRIMARY,
+        egui::pos2(x + COL_TIME + COL_LV, y),
+        font.clone(),
+        search_query,
+        case_sensitive,
     );
 
-    // PID
-    painter.text(
+    // PID (no highlighting)
+    ui.painter().text(
         egui::pos2(x + COL_TIME + COL_LV + COL_TAG, y),
         egui::Align2::LEFT_CENTER,
         entry.pid.to_string(),
@@ -151,16 +165,43 @@ fn render_row(ui: &mut egui::Ui, entry: &LogEntry, is_selected: bool) -> egui::R
         TEXT_SECONDARY,
     );
 
-    // Message
-    painter.text(
-        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID, y),
-        egui::Align2::LEFT_CENTER,
+    // Message — highlight if search query matches
+    paint_cell(
+        ui,
         &entry.message,
-        font,
         TEXT_PRIMARY,
+        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID, y),
+        font,
+        search_query,
+        case_sensitive,
     );
 
     response
+}
+
+/// Paints a text cell, using a highlighted `LayoutJob` when the search query
+/// has matches, and plain `painter.text()` otherwise.
+fn paint_cell(
+    ui: &mut egui::Ui,
+    text: &str,
+    base_color: Color32,
+    pos: egui::Pos2,
+    font: FontId,
+    search_query: &str,
+    case_sensitive: bool,
+) {
+    if !search_query.is_empty() {
+        let ranges = SearchEngine::highlight_ranges(text, search_query, case_sensitive);
+        if !ranges.is_empty() {
+            let job = SearchEngine::build_layout_job(text, &ranges, base_color, font);
+            let galley = ui.fonts(|f| f.layout_job(job));
+            let top_left = egui::pos2(pos.x, pos.y - galley.size().y / 2.0);
+            ui.painter().galley(top_left, galley, base_color);
+            return;
+        }
+    }
+    ui.painter()
+        .text(pos, egui::Align2::LEFT_CENTER, text, font, base_color);
 }
 
 fn brighten(color: Color32) -> Color32 {

@@ -40,7 +40,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 .desired_width(160.0),
         );
         if search_resp.changed() {
-            state.filter_dirty = true;
+            // Debounce: set filter_dirty after 150ms to avoid recompute on every keystroke
+            state.search_debounce_until =
+                Some(std::time::Instant::now() + std::time::Duration::from_millis(150));
         }
 
         ui.add_space(4.0);

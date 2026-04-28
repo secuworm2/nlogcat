@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use crate::adb::{list_devices, AdbManager};
@@ -23,6 +23,7 @@ pub struct AppState {
     pub settings: AppSettings,
     pub device_poll_tx: mpsc::Sender<()>,
     pub adb_error: Option<String>,
+    pub search_debounce_until: Option<Instant>,
 }
 
 pub struct NlogcatApp {
@@ -90,6 +91,7 @@ impl NlogcatApp {
             settings,
             device_poll_tx,
             adb_error: None,
+            search_debounce_until: None,
         };
 
         Self {
@@ -104,6 +106,7 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_log_channel();
         self.drain_device_channel();
+        self.check_search_debounce();
         self.recompute_filter_if_dirty();
 
         ctx.input(|i| {
@@ -159,6 +162,15 @@ impl NlogcatApp {
                         self.state.filtered_indices.push(i);
                     }
                 }
+            }
+        }
+    }
+
+    fn check_search_debounce(&mut self) {
+        if let Some(until) = self.state.search_debounce_until {
+            if Instant::now() >= until {
+                self.state.filter_dirty = true;
+                self.state.search_debounce_until = None;
             }
         }
     }
