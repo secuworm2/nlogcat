@@ -51,6 +51,17 @@ impl LogBuffer {
     pub fn entries(&self) -> &VecDeque<LogEntry> {
         &self.entries
     }
+
+    /// O(1) lookup by sequential ID. Returns None if the entry has been evicted.
+    #[must_use]
+    pub fn find_by_id(&self, id: u64) -> Option<&LogEntry> {
+        let first_id = self.entries.front()?.id;
+        if id < first_id {
+            return None;
+        }
+        let idx = (id - first_id) as usize;
+        self.entries.get(idx).filter(|e| e.id == id)
+    }
 }
 
 #[cfg(test)]
