@@ -11,5 +11,12 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
             crate::ui::toolbar::render(ui, state);
         });
 
+    egui::TopBottomPanel::top("filter_bar")
+        .exact_height(56.0)
+        .frame(Frame::none().fill(BG_SURFACE))
+        .show(ctx, |ui| {
+            crate::ui::filter_bar::render(ui, state);
+        });
+
     egui::CentralPanel::default().show(ctx, |_ui| {});
 }
