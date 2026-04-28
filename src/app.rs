@@ -20,6 +20,7 @@ pub struct AppState {
     pub show_settings: bool,
     pub settings: AppSettings,
     pub device_poll_tx: mpsc::Sender<()>,
+    pub adb_error: Option<String>,
 }
 
 pub struct NlogcatApp {
@@ -84,6 +85,7 @@ impl NlogcatApp {
             show_settings: false,
             settings,
             device_poll_tx,
+            adb_error: None,
         };
 
         Self {
