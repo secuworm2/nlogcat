@@ -1,7 +1,6 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
-// 이후 태스크에서 연결될 항목들에 대한 임시 허용
 #![allow(dead_code, unused_imports)]
 #![allow(clippy::missing_errors_doc)]
 
@@ -13,6 +12,25 @@ mod ui;
 mod config;
 mod theme;
 
+use app::NlogcatApp;
+
 fn main() {
-    // eframe 진입점 (TASK-09에서 구현)
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime 생성 실패");
+    let _guard = rt.enter();
+
+    let settings = crate::config::settings::load();
+
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([settings.window_width, settings.window_height])
+            .with_title("nlogcat"),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "nlogcat",
+        native_options,
+        Box::new(|cc| Ok(Box::new(NlogcatApp::new(cc)))),
+    )
+    .expect("eframe 실행 실패");
 }
