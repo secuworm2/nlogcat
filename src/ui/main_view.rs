@@ -28,4 +28,8 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     egui::CentralPanel::default().show(ctx, |ui| {
         crate::ui::log_table::render(ui, state);
     });
+
+    // Modal overlays — rendered after panels so they appear on top
+    crate::ui::detail_modal::render(ctx, state);
+    crate::ui::settings_panel::render(ctx, state);
 }
