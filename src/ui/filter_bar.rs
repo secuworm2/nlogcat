@@ -91,7 +91,7 @@ fn level_toggle(
         let weak_color = ui.visuals().weak_text_color();
         let hover_bg = ui.visuals().widgets.hovered.bg_fill;
         let text_color = ui.visuals().text_color();
-        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+
 
         let w = &mut ui.style_mut().visuals.widgets;
         if active {
@@ -113,15 +113,15 @@ fn level_toggle(
             w.inactive.weak_bg_fill = Color32::TRANSPARENT;
             w.inactive.bg_fill = Color32::TRANSPARENT;
             w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
-            w.inactive.bg_stroke = Stroke::new(1.0, border);
+            w.inactive.bg_stroke = Stroke::NONE;
             w.hovered.weak_bg_fill = hover_bg;
             w.hovered.bg_fill = hover_bg;
             w.hovered.fg_stroke = Stroke::new(1.0, text_color);
-            w.hovered.bg_stroke = Stroke::new(1.0, border);
+            w.hovered.bg_stroke = Stroke::NONE;
             w.active.weak_bg_fill = hover_bg;
             w.active.bg_fill = hover_bg;
             w.active.fg_stroke = Stroke::new(1.0, text_color);
-            w.active.bg_stroke = Stroke::new(1.0, border);
+            w.active.bg_stroke = Stroke::NONE;
         }
         ui.button(label)
     })
@@ -134,7 +134,7 @@ fn case_button(ui: &mut egui::Ui, active: bool) -> egui::Response {
         let weak_color = ui.visuals().weak_text_color();
         let hover_bg = ui.visuals().widgets.hovered.bg_fill;
         let text_color = ui.visuals().text_color();
-        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+
 
         let w = &mut ui.style_mut().visuals.widgets;
         if active {
@@ -154,15 +154,15 @@ fn case_button(ui: &mut egui::Ui, active: bool) -> egui::Response {
             w.inactive.weak_bg_fill = Color32::TRANSPARENT;
             w.inactive.bg_fill = Color32::TRANSPARENT;
             w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
-            w.inactive.bg_stroke = Stroke::new(1.0, border);
+            w.inactive.bg_stroke = Stroke::NONE;
             w.hovered.weak_bg_fill = hover_bg;
             w.hovered.bg_fill = hover_bg;
             w.hovered.fg_stroke = Stroke::new(1.0, text_color);
-            w.hovered.bg_stroke = Stroke::new(1.0, border);
+            w.hovered.bg_stroke = Stroke::NONE;
             w.active.weak_bg_fill = hover_bg;
             w.active.bg_fill = hover_bg;
             w.active.fg_stroke = Stroke::new(1.0, text_color);
-            w.active.bg_stroke = Stroke::new(1.0, border);
+            w.active.bg_stroke = Stroke::NONE;
         }
         ui.add(
             egui::Button::new(

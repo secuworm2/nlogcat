@@ -57,15 +57,17 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         });
 
         ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(8.0);
 
-        let toggle_label = if state.is_streaming { "⏸ 정지" } else { "▶ 재개" };
-        if ghost_button(ui, toggle_label).clicked() {
+        let toggle_label = if state.is_streaming { "정지" } else { "재개" };
+        if flat_button(ui, toggle_label).clicked() {
             state.is_streaming = !state.is_streaming;
         }
 
-        ui.add_space(4.0);
+        ui.add_space(2.0);
 
-        if danger_button(ui, "🗑 초기화").clicked() {
+        if danger_button(ui, "초기화").clicked() {
             if let Ok(mut buf) = state.log_buffer.lock() {
                 buf.clear();
             }
@@ -73,49 +75,49 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             state.filter_dirty = true;
         }
 
-        ui.add_space(4.0);
+        ui.add_space(2.0);
 
-        if ghost_button(ui, "💾 저장").clicked() {
+        if flat_button(ui, "저장").clicked() {
             state.save_requested = true;
         }
 
         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(8.0);
 
-            if ghost_button(ui, "?").clicked() {
+            if flat_button(ui, "?").clicked() {
                 state.show_help = !state.show_help;
             }
 
-            ui.add_space(4.0);
+            ui.add_space(2.0);
 
-            if ghost_button(ui, "설정").clicked() {
+            if flat_button(ui, "설정").clicked() {
                 state.show_settings = !state.show_settings;
             }
         });
     });
 }
 
-fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
+/// Borderless flat button — no border in any state, subtle bg on hover.
+fn flat_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
     ui.scope(|ui| {
         let text_color = ui.visuals().text_color();
         let weak_color = ui.visuals().weak_text_color();
         let hover_bg = ui.visuals().widgets.hovered.bg_fill;
         let active_bg = ui.visuals().widgets.active.bg_fill;
-        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
 
         let w = &mut ui.style_mut().visuals.widgets;
         w.inactive.weak_bg_fill = Color32::TRANSPARENT;
         w.inactive.bg_fill = Color32::TRANSPARENT;
         w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
-        w.inactive.bg_stroke = Stroke::new(1.0, border);
+        w.inactive.bg_stroke = Stroke::NONE;
         w.hovered.weak_bg_fill = hover_bg;
         w.hovered.bg_fill = hover_bg;
         w.hovered.fg_stroke = Stroke::new(1.0, text_color);
-        w.hovered.bg_stroke = Stroke::new(1.0, border);
+        w.hovered.bg_stroke = Stroke::NONE;
         w.active.weak_bg_fill = active_bg;
         w.active.bg_fill = active_bg;
         w.active.fg_stroke = Stroke::new(1.0, text_color);
-        w.active.bg_stroke = Stroke::new(1.0, border);
+        w.active.bg_stroke = Stroke::NONE;
         ui.button(text)
     })
     .inner
@@ -124,7 +126,6 @@ fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
 fn danger_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
     ui.scope(|ui| {
         let dark_mode = ui.visuals().dark_mode;
-        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
         let hover_bg = if dark_mode {
             Color32::from_rgb(42, 26, 26)
         } else {
@@ -135,15 +136,15 @@ fn danger_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
         w.inactive.weak_bg_fill = Color32::TRANSPARENT;
         w.inactive.bg_fill = Color32::TRANSPARENT;
         w.inactive.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
-        w.inactive.bg_stroke = Stroke::new(1.0, border);
+        w.inactive.bg_stroke = Stroke::NONE;
         w.hovered.weak_bg_fill = hover_bg;
         w.hovered.bg_fill = hover_bg;
         w.hovered.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
-        w.hovered.bg_stroke = Stroke::new(1.0, STATUS_ERROR);
+        w.hovered.bg_stroke = Stroke::NONE;
         w.active.weak_bg_fill = hover_bg;
         w.active.bg_fill = hover_bg;
         w.active.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
-        w.active.bg_stroke = Stroke::new(1.0, STATUS_ERROR);
+        w.active.bg_stroke = Stroke::NONE;
         ui.button(text)
     })
     .inner
