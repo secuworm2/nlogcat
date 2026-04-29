@@ -69,6 +69,7 @@ pub struct NlogcatApp {
     pid_map_tx: mpsc::Sender<HashMap<u32, String>>,
     pid_refresh_task: Option<tokio::task::JoinHandle<()>>,
     last_drain: Instant,
+    active_serial: Option<String>,
 }
 
 impl NlogcatApp {
@@ -155,6 +156,7 @@ impl NlogcatApp {
             pid_map_tx,
             pid_refresh_task: None,
             last_drain: Instant::now(),
+            active_serial: None,
         }
     }
 }
@@ -333,6 +335,7 @@ impl NlogcatApp {
             if self.state.is_streaming {
                 self.state.is_streaming = false;
             }
+            self.active_serial = None;
             return;
         };
 
@@ -344,6 +347,8 @@ impl NlogcatApp {
             StopStream,
         }
 
+        let device_changed = self.active_serial.as_deref() != Some(serial.as_str());
+
         let action = match self.adb_manager {
             None => {
                 if self.state.is_streaming {
@@ -353,7 +358,7 @@ impl NlogcatApp {
                 }
             }
             Some(ref mut mgr) => {
-                if self.state.is_streaming && !mgr.is_streaming() {
+                if self.state.is_streaming && (!mgr.is_streaming() || device_changed) {
                     let adb_path = mgr.adb_path.clone();
                     match mgr.start_stream(&serial, self.log_tx.clone()) {
                         Ok(()) => Action::StartStream { adb_path },
@@ -371,13 +376,16 @@ impl NlogcatApp {
         match action {
             Action::None => {}
             Action::StartStream { adb_path } => {
+                self.active_serial = Some(serial.clone());
                 self.start_pid_refresh(adb_path, serial);
             }
             Action::StartFailed(msg) => {
                 self.state.is_streaming = false;
+                self.active_serial = None;
                 self.state.set_error(msg);
             }
             Action::StopStream => {
+                self.active_serial = None;
                 self.stop_pid_refresh();
             }
         }
@@ -421,6 +429,7 @@ impl NlogcatApp {
                 mgr.stop_stream();
             }
             self.stop_pid_refresh();
+            self.active_serial = None;
             self.state.is_streaming = false;
             self.state
                 .set_error("스트림이 예기치 않게 종료되었습니다".to_string());

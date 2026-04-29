@@ -7,7 +7,9 @@ use crate::theme::colors::{
 
 pub fn render(ctx: &egui::Context, state: &AppState) {
     egui::TopBottomPanel::bottom("detail_panel")
-        .exact_height(110.0)
+        .resizable(true)
+        .min_height(60.0)
+        .default_height(110.0)
         .frame(
             Frame::none()
                 .fill(BG_SURFACE)

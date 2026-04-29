@@ -53,6 +53,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                             new_selection = Some(serial.clone());
                         }
                     }
+                    if new_selection != state.selected_device && new_selection.is_some() {
+                        state.is_streaming = true;
+                    }
                     state.selected_device = new_selection;
                 });
         });
