@@ -17,12 +17,13 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
 
-    // Arrow key navigation and Ctrl+A (only when detail modal is not open)
+    // Arrow key navigation, Ctrl+A, Delete (only when detail modal is not open)
     if state.detail_log_id.is_none() {
-        let (up, down, ctrl_a) = ui.ctx().input(|i| (
+        let (up, down, ctrl_a, delete) = ui.ctx().input(|i| (
             i.key_pressed(egui::Key::ArrowUp),
             i.key_pressed(egui::Key::ArrowDown),
             i.modifiers.ctrl && i.key_pressed(egui::Key::A),
+            i.key_pressed(egui::Key::Delete),
         ));
         if up { navigate_focus(state, -1); }
         if down { navigate_focus(state, 1); }
@@ -35,6 +36,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                     }
                 }
             }
+        }
+        if delete && !state.selected_log_ids.is_empty() {
+            let focused_deleted = state.focused_log_id
+                .is_some_and(|id| state.selected_log_ids.contains(&id));
+            if let Ok(mut buf) = state.log_buffer.lock() {
+                buf.remove_by_ids(&state.selected_log_ids);
+            }
+            state.selected_log_ids.clear();
+            state.filtered_indices.clear();
+            state.filter_dirty = true;
+            state.last_click_idx = None;
+            if focused_deleted { state.focused_log_id = None; }
         }
     }
 

@@ -20,7 +20,7 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         .title_bar(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .min_width(320.0)
+        .min_width(340.0)
         .frame(
             Frame::none()
                 .fill(window_fill)
@@ -42,7 +42,7 @@ fn render_content(ui: &mut egui::Ui, close: &mut bool) {
     let weak_text = ui.visuals().weak_text_color();
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("단축키 도움말").strong().color(text_color));
+        ui.label(RichText::new("도움말").strong().color(text_color));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button("X").clicked() {
                 *close = true;
@@ -51,26 +51,55 @@ fn render_content(ui: &mut egui::Ui, close: &mut bool) {
     });
 
     ui.separator();
-    ui.add_space(8.0);
+    ui.add_space(6.0);
+
+    ui.label(RichText::new("단축키").strong().size(11.0).color(weak_text));
+    ui.add_space(4.0);
 
     let shortcuts: &[(&str, &str)] = &[
-        ("↑ / ↓",          "이전/다음 로그 선택"),
-        ("더블클릭",         "로그 상세 보기"),
-        ("Ctrl + A",        "전체 선택"),
-        ("Ctrl + F",        "검색어 입력 필드 포커스"),
-        ("Ctrl + 클릭",     "다중 선택"),
-        ("Shift + 클릭",    "범위 선택"),
-        ("Ctrl + 스크롤",   "폰트 크기 조절"),
-        ("Esc",             "팝업 닫기"),
+        ("↑ / ↓",        "이전/다음 로그 선택"),
+        ("더블클릭",       "로그 상세 보기"),
+        ("Ctrl + A",      "전체 선택"),
+        ("Delete",        "선택된 로그 삭제"),
+        ("Ctrl + F",      "검색어 입력 필드 포커스"),
+        ("Ctrl + 클릭",   "다중 선택"),
+        ("Shift + 클릭",  "범위 선택"),
+        ("Ctrl + 스크롤", "폰트 크기 조절"),
+        ("Esc",           "팝업 닫기"),
     ];
 
     egui::Grid::new("help_shortcuts")
         .num_columns(2)
-        .spacing([24.0, 6.0])
+        .spacing([24.0, 5.0])
         .show(ui, |ui| {
             for &(key, desc) in shortcuts {
                 ui.label(RichText::new(key).monospace().color(text_color));
                 ui.label(RichText::new(desc).color(weak_text));
+                ui.end_row();
+            }
+        });
+
+    ui.add_space(10.0);
+    ui.separator();
+    ui.add_space(6.0);
+
+    ui.label(RichText::new("라이선스").strong().size(11.0).color(weak_text));
+    ui.add_space(4.0);
+
+    egui::Grid::new("help_licenses")
+        .num_columns(2)
+        .spacing([24.0, 5.0])
+        .show(ui, |ui| {
+            for &(name, license) in &[
+                ("nlogcat v1.0.0", "MIT  —  secuworm"),
+                ("egui / eframe",  "MIT"),
+                ("tokio",          "MIT"),
+                ("serde",          "MIT / Apache-2.0"),
+                ("anyhow",         "MIT / Apache-2.0"),
+                ("rfd",            "MIT"),
+            ] {
+                ui.label(RichText::new(name).monospace().color(text_color));
+                ui.label(RichText::new(license).color(weak_text));
                 ui.end_row();
             }
         });

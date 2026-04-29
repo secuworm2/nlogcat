@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use super::log_entry::LogEntry;
 
@@ -32,6 +32,10 @@ impl LogBuffer {
         self.entries.clear();
     }
 
+    pub fn remove_by_ids(&mut self, ids: &HashSet<u64>) {
+        self.entries.retain(|e| !ids.contains(&e.id));
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -52,7 +56,7 @@ impl LogBuffer {
         &self.entries
     }
 
-    /// O(1) lookup by sequential ID. Returns None if the entry has been evicted.
+    /// O(1) lookup by sequential ID, with linear-search fallback after selective deletions.
     #[must_use]
     pub fn find_by_id(&self, id: u64) -> Option<&LogEntry> {
         let first_id = self.entries.front()?.id;
@@ -60,7 +64,10 @@ impl LogBuffer {
             return None;
         }
         let idx = usize::try_from(id - first_id).ok()?;
-        self.entries.get(idx).filter(|e| e.id == id)
+        if let Some(e) = self.entries.get(idx).filter(|e| e.id == id) {
+            return Some(e);
+        }
+        self.entries.iter().find(|e| e.id == id)
     }
 }
 
