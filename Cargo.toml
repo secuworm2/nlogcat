@@ -1,7 +1,10 @@
 [package]
-name    = "nlogcat"
-version = "1.0.0"
-edition = "2021"
+name        = "nlogcat"
+version     = "1.0.0"
+edition     = "2021"
+authors     = ["secuworm"]
+license     = "MIT"
+description = "Android logcat viewer for Windows"
 
 [dependencies]
 eframe      = { version = "0.28", features = ["wgpu"] }

@@ -1,1 +1,140 @@
-﻿
+<?xml version='1.0' encoding='windows-1252'?>
+<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64 ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?else ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+<?endif ?>
+
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+    <Product
+        Id='*'
+        Name='nlogcat'
+        UpgradeCode='FF550E28-F7DD-4BAD-95F5-AE85E4DC461C'
+        Manufacturer='secuworm'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Description='Android logcat viewer for Windows'
+            Manufacturer='secuworm'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'
+            />
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='nlogcat Installation'/>
+
+        <Icon Id='ProductICO' SourceFile='assets\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='nlogcat'>
+                    <Component Id='License' Guid='*'>
+                        <File Id='LicenseFile'
+                            DiskId='1'
+                            Source='wix\License.rtf'
+                            KeyPath='yes'/>
+                    </Component>
+
+                    <Component Id='binary0' Guid='*'>
+                        <File
+                            Id='exe0'
+                            Name='nlogcat.exe'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\nlogcat.exe'
+                            KeyPath='yes'/>
+                    </Component>
+
+                    <Component Id='StartMenuShortcutComp' Guid='*'>
+                        <Shortcut
+                            Id='StartMenuShortcut'
+                            Directory='CommonProgramMenuFolder'
+                            Name='nlogcat'
+                            Description='Android logcat viewer'
+                            Target='[APPLICATIONFOLDER]nlogcat.exe'
+                            Icon='ProductICO'/>
+                        <RegistryValue
+                            Root='HKLM'
+                            Key='Software\nlogcat'
+                            Name='StartMenuShortcut'
+                            Type='integer'
+                            Value='1'
+                            KeyPath='yes'/>
+                    </Component>
+
+                    <Component Id='DesktopShortcutComp' Guid='*'>
+                        <Shortcut
+                            Id='DesktopShortcut'
+                            Directory='CommonDesktopFolder'
+                            Name='nlogcat'
+                            Description='Android logcat viewer'
+                            Target='[APPLICATIONFOLDER]nlogcat.exe'
+                            Icon='ProductICO'/>
+                        <RegistryValue
+                            Root='HKLM'
+                            Key='Software\nlogcat'
+                            Name='DesktopShortcut'
+                            Type='integer'
+                            Value='1'
+                            KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <Directory Id='CommonProgramMenuFolder' Name='Programs'/>
+            <Directory Id='CommonDesktopFolder' Name='Desktop'/>
+        </Directory>
+
+        <Feature
+            Id='Binaries'
+            Title='Application'
+            Description='Installs nlogcat and the license.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+            <ComponentRef Id='License'/>
+            <ComponentRef Id='binary0'/>
+
+            <Feature
+                Id='StartMenuShortcutFeature'
+                Title='Start Menu Shortcut'
+                Description='Add a shortcut to nlogcat in the Start Menu (all users).'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='StartMenuShortcutComp'/>
+            </Feature>
+
+            <Feature
+                Id='DesktopShortcutFeature'
+                Title='Desktop Shortcut'
+                Description='Add a shortcut to nlogcat on the Desktop (all users).'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='DesktopShortcutComp'/>
+            </Feature>
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <UI>
+            <UIRef Id='WixUI_FeatureTree'/>
+        </UI>
+
+        <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf'/>
+
+    </Product>
+
+</Wix>
