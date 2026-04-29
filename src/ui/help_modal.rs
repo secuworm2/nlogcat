@@ -83,26 +83,11 @@ fn render_content(ui: &mut egui::Ui, close: &mut bool) {
     ui.separator();
     ui.add_space(6.0);
 
-    ui.label(RichText::new("라이선스").strong().size(11.0).color(weak_text));
-    ui.add_space(4.0);
-
-    egui::Grid::new("help_licenses")
-        .num_columns(2)
-        .spacing([24.0, 5.0])
-        .show(ui, |ui| {
-            for &(name, license) in &[
-                ("nlogcat v1.0.0", "MIT  —  secuworm"),
-                ("egui / eframe",  "MIT"),
-                ("tokio",          "MIT"),
-                ("serde",          "MIT / Apache-2.0"),
-                ("anyhow",         "MIT / Apache-2.0"),
-                ("rfd",            "MIT"),
-            ] {
-                ui.label(RichText::new(name).monospace().color(text_color));
-                ui.label(RichText::new(license).color(weak_text));
-                ui.end_row();
-            }
-        });
+    ui.label(
+        RichText::new("Copyright © secuworm. Released under the MIT License.")
+            .color(weak_text)
+            .size(11.0),
+    );
 
     ui.add_space(8.0);
 }

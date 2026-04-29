@@ -111,7 +111,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         widths,
                         dark_mode,
                     );
-                    if resp.double_clicked() {
+                    if resp.double_clicked() && focused_log_id == Some(entry_id) {
                         double_clicked_id = Some(entry_id);
                     } else if resp.clicked() {
                         single_clicked = Some((row_idx, entry_id));
