@@ -154,69 +154,60 @@ fn render_row(
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
 
-    // Time (no highlighting)
-    ui.painter().text(
-        egui::pos2(x, y),
-        egui::Align2::LEFT_CENTER,
-        format!("{} {}", entry.date, entry.time),
-        font.clone(),
-        TEXT_SECONDARY,
-    );
+    // Pre-compute column start positions
+    let lv_x   = x + COL_TIME;
+    let tag_x  = lv_x + COL_LV;
+    let pid_x  = tag_x + COL_TAG;
+    let pkg_x  = pid_x + COL_PID;
+    let msg_x  = pkg_x + COL_PKG;
 
-    // Level badge (no highlighting)
-    ui.painter().text(
-        egui::pos2(x + COL_TIME, y),
-        egui::Align2::LEFT_CENTER,
-        entry.level.label(),
-        font.clone(),
-        level_label_color(entry.level),
-    );
+    // Helper: build a clip rect spanning the column, bounded by the row height.
+    let col_clip = |start: f32, width: f32| {
+        egui::Rect::from_min_max(
+            egui::pos2(start, rect.min.y),
+            egui::pos2(start + width - 4.0, rect.max.y),
+        )
+    };
 
-    // Tag — highlight if search query matches
-    paint_cell(
-        ui,
-        &entry.tag,
-        TEXT_PRIMARY,
-        egui::pos2(x + COL_TIME + COL_LV, y),
-        font.clone(),
-        search_query,
-        case_sensitive,
-    );
+    // Time
+    ui.painter()
+        .with_clip_rect(col_clip(x, COL_TIME))
+        .text(egui::pos2(x, y), egui::Align2::LEFT_CENTER,
+              format!("{} {}", entry.date, entry.time), font.clone(), TEXT_SECONDARY);
 
-    // PID (no highlighting)
-    ui.painter().text(
-        egui::pos2(x + COL_TIME + COL_LV + COL_TAG, y),
-        egui::Align2::LEFT_CENTER,
-        entry.pid.to_string(),
-        font.clone(),
-        TEXT_SECONDARY,
-    );
+    // Level badge
+    ui.painter()
+        .with_clip_rect(col_clip(lv_x, COL_LV))
+        .text(egui::pos2(lv_x, y), egui::Align2::LEFT_CENTER,
+              entry.level.label(), font.clone(), level_label_color(entry.level));
 
-    // Package name (no highlighting)
-    ui.painter().text(
-        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID, y),
-        egui::Align2::LEFT_CENTER,
-        pkg_name,
-        font.clone(),
-        TEXT_SECONDARY,
-    );
+    // Tag
+    paint_cell(ui, &entry.tag, TEXT_PRIMARY, egui::pos2(tag_x, y),
+               font.clone(), search_query, case_sensitive, col_clip(tag_x, COL_TAG));
 
-    // Message — highlight if search query matches
-    paint_cell(
-        ui,
-        &entry.message,
-        TEXT_PRIMARY,
-        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID + COL_PKG, y),
-        font,
-        search_query,
-        case_sensitive,
+    // PID
+    ui.painter()
+        .with_clip_rect(col_clip(pid_x, COL_PID))
+        .text(egui::pos2(pid_x, y), egui::Align2::LEFT_CENTER,
+              entry.pid.to_string(), font.clone(), TEXT_SECONDARY);
+
+    // Package name
+    ui.painter()
+        .with_clip_rect(col_clip(pkg_x, COL_PKG))
+        .text(egui::pos2(pkg_x, y), egui::Align2::LEFT_CENTER,
+              pkg_name, font.clone(), TEXT_SECONDARY);
+
+    // Message — clips to the right edge of the row
+    let msg_clip = egui::Rect::from_min_max(
+        egui::pos2(msg_x, rect.min.y),
+        egui::pos2(rect.max.x, rect.max.y),
     );
+    paint_cell(ui, &entry.message, TEXT_PRIMARY, egui::pos2(msg_x, y),
+               font, search_query, case_sensitive, msg_clip);
 
     response
 }
 
-/// Paints a text cell, using a highlighted `LayoutJob` when the search query
-/// has matches, and plain `painter.text()` otherwise.
 fn paint_cell(
     ui: &mut egui::Ui,
     text: &str,
@@ -225,6 +216,7 @@ fn paint_cell(
     font: FontId,
     search_query: &str,
     case_sensitive: bool,
+    clip_rect: egui::Rect,
 ) {
     if !search_query.is_empty() {
         let ranges = SearchEngine::highlight_ranges(text, search_query, case_sensitive);
@@ -232,11 +224,12 @@ fn paint_cell(
             let job = SearchEngine::build_layout_job(text, &ranges, base_color, font);
             let galley = ui.fonts(|f| f.layout_job(job));
             let top_left = egui::pos2(pos.x, pos.y - galley.size().y / 2.0);
-            ui.painter().galley(top_left, galley, base_color);
+            ui.painter().with_clip_rect(clip_rect).galley(top_left, galley, base_color);
             return;
         }
     }
     ui.painter()
+        .with_clip_rect(clip_rect)
         .text(pos, egui::Align2::LEFT_CENTER, text, font, base_color);
 }
 
