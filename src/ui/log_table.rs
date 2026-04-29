@@ -157,6 +157,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 }
 
 fn navigate_focus(state: &mut AppState, delta: i64) {
+    // Disable auto-scroll so scroll_to_bottom doesn't override scroll_to_row
+    state.auto_scroll = false;
+    state.scroll_to_bottom = false;
+
     let cur_pos = state.focused_log_id.and_then(|id| {
         let Ok(buf) = state.log_buffer.lock() else { return None; };
         let cur_buf_idx = buf.entries().iter().enumerate()

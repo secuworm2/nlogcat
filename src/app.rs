@@ -177,9 +177,8 @@ impl eframe::App for NlogcatApp {
         self.manage_streaming();
         self.tick_error_dismiss();
 
-        let wants_kb = ctx.wants_keyboard_input();
         let (copy_requested, size_changed) = ctx.input(|i| {
-            let copy = !wants_kb && i.modifiers.ctrl && i.key_pressed(egui::Key::C);
+            let copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
             let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
             (copy, size)
         });
@@ -187,15 +186,19 @@ impl eframe::App for NlogcatApp {
             self.state.settings.window_width = w;
             self.state.settings.window_height = h;
         }
-        if copy_requested && !self.state.selected_log_ids.is_empty() {
-            let text = self.build_copy_content();
-            ctx.output_mut(|o| o.copied_text = text);
-        }
 
         if self.state.selected_device.is_some() {
             crate::ui::main_view::render(ctx, &mut self.state);
         } else {
             crate::ui::empty_view::render(ctx, &mut self.state);
+        }
+
+        // Apply clipboard copy AFTER all UI renders so we win over any TextEdit in the same frame
+        if copy_requested && !self.state.selected_log_ids.is_empty() {
+            let text = self.build_copy_content();
+            if !text.is_empty() {
+                ctx.output_mut(|o| o.copied_text = text);
+            }
         }
 
         // While streaming, drive repaints at ~30fps so eframe doesn't go idle.
