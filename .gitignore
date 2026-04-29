@@ -15,3 +15,4 @@ tests/
 
 # Font placeholders (실제 폰트 파일로 교체 필요)
 assets/fonts/*.ttf
+nlogcat_crash.log
