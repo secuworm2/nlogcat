@@ -4,7 +4,6 @@ use crate::app::AppState;
 use crate::model::LogEntry;
 use crate::theme::colors::level_label_color;
 
-const COPY_FEEDBACK_ID: &str = "detail_copy_time";
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
     let Some(log_id) = state.detail_log_id else {
@@ -171,24 +170,6 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
             );
         });
 
-    ui.add_space(8.0);
-
-    let copy_id = egui::Id::new(COPY_FEEDBACK_ID);
-    let copy_time: Option<f64> = ui.ctx().data(|d| d.get_temp(copy_id));
-    let now = ui.ctx().input(|i| i.time);
-    let is_copied = copy_time.is_some_and(|t| now - t < 1.0);
-
-    if is_copied {
-        ui.ctx().request_repaint();
-    }
-
-    let btn_label = if is_copied { "복사됨!" } else { "메시지 복사" };
-
-    if ui.button(btn_label).clicked() && !is_copied {
-        let msg = entry.message.clone();
-        ui.output_mut(|o| o.copied_text = msg);
-        ui.ctx().data_mut(|d| d.insert_temp(copy_id, now));
-    }
 }
 
 fn field_row(

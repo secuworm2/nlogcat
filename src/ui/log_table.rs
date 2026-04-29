@@ -42,10 +42,12 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 .is_some_and(|id| state.selected_log_ids.contains(&id));
             if let Ok(mut buf) = state.log_buffer.lock() {
                 buf.remove_by_ids(&state.selected_log_ids);
+                // Recompute synchronously to avoid the scroll-reset caused by clearing indices
+                state.filtered_indices = crate::engine::filter::FilterEngine::compute_indices(
+                    &buf, &state.filter, &state.pid_map,
+                );
             }
             state.selected_log_ids.clear();
-            state.filtered_indices.clear();
-            state.filter_dirty = true;
             state.last_click_idx = None;
             if focused_deleted { state.focused_log_id = None; }
         }
@@ -53,12 +55,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
     let mut single_clicked: Option<(usize, u64)> = None;
     let mut double_clicked_id: Option<u64> = None;
+    let mut drag_started_at: Option<(usize, u64)> = None;
+    let mut drag_hover_row: Option<usize> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
     let scroll_to_row = state.scroll_to_row;
     let table_visible_height = state.table_visible_height;
     let row_height_full = row_height + ui.spacing().item_spacing.y;
 
-    let modifiers = ui.ctx().input(|i| i.modifiers);
+    let (modifiers, pointer_down, pointer_released) = ui.ctx().input(|i| (
+        i.modifiers,
+        i.pointer.primary_down(),
+        i.pointer.primary_released(),
+    ));
     let dark_mode = ui.visuals().dark_mode;
 
     let (scroll_offset_y, content_height, visible_height) = {
@@ -111,10 +119,15 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         widths,
                         dark_mode,
                     );
-                    if resp.double_clicked() && focused_log_id == Some(entry_id) {
+                    if resp.drag_started() {
+                        drag_started_at = Some((row_idx, entry_id));
+                    } else if resp.double_clicked() && focused_log_id == Some(entry_id) {
                         double_clicked_id = Some(entry_id);
                     } else if resp.clicked() {
                         single_clicked = Some((row_idx, entry_id));
+                    }
+                    if resp.hovered() && pointer_down {
+                        drag_hover_row = Some(row_idx);
                     }
                 }
             }
@@ -130,6 +143,41 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         state.scroll_to_row = None;
     }
     state.table_visible_height = visible_height;
+
+    // Drag-to-select: start
+    if let Some((row_idx, entry_id)) = drag_started_at {
+        state.drag_select_anchor = Some(row_idx);
+        state.selected_log_ids.clear();
+        state.selected_log_ids.insert(entry_id);
+        state.focused_log_id = Some(entry_id);
+        state.last_click_idx = Some(row_idx);
+    }
+
+    // Drag-to-select: update selection while dragging
+    if pointer_down {
+        if let (Some(anchor), Some(current)) = (state.drag_select_anchor, drag_hover_row) {
+            if current != anchor || drag_started_at.is_none() {
+                let lo = anchor.min(current);
+                let hi = anchor.max(current);
+                state.selected_log_ids.clear();
+                if let Ok(buf) = state.log_buffer.lock() {
+                    let entries = buf.entries();
+                    for pos in lo..=hi {
+                        if let Some(&idx) = state.filtered_indices.get(pos) {
+                            if let Some(e) = entries.get(idx) {
+                                state.selected_log_ids.insert(e.id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Drag-to-select: end
+    if pointer_released {
+        state.drag_select_anchor = None;
+    }
 
     if content_height > 0.0 {
         let max_scroll = (content_height - visible_height).max(0.0);
@@ -307,7 +355,7 @@ fn render_row(
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
-        ui.allocate_exact_size(egui::vec2(w, row_height), egui::Sense::click());
+        ui.allocate_exact_size(egui::vec2(w, row_height), egui::Sense::click_and_drag());
 
     let selection_bg = ui.visuals().selection.bg_fill;
     let text_color = ui.visuals().text_color();
