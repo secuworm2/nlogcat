@@ -22,11 +22,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
     // Left: save status / error / normal counts
     let total = state.log_buffer.lock().map_or(0, |buf| buf.len());
-    let filtered = if state.filtered_indices.is_empty() {
-        total
-    } else {
-        state.filtered_indices.len()
-    };
+    let filtered = state.filtered_indices.len();
 
     let save_expired = state
         .save_status

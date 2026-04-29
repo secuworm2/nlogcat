@@ -33,14 +33,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         let log_buffer = &state.log_buffer;
         let selected_log_id = state.selected_log_id;
 
-        let total_rows = {
-            let buf_len = log_buffer.lock().map_or(0, |buf| buf.len());
-            if filtered_indices.is_empty() {
-                buf_len
-            } else {
-                filtered_indices.len()
-            }
-        };
+        let total_rows = filtered_indices.len();
 
         let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
 
@@ -53,11 +46,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             let entries = buf.entries();
 
             for row_idx in row_range {
-                let entry_idx = if filtered_indices.is_empty() {
-                    row_idx
-                } else {
-                    filtered_indices[row_idx]
-                };
+                let entry_idx = filtered_indices[row_idx];
 
                 if let Some(entry) = entries.get(entry_idx) {
                     let is_selected = selected_log_id == Some(entry.id);

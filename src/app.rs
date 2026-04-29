@@ -99,7 +99,7 @@ impl NlogcatApp {
             log_rx,
             filter: FilterState::default(),
             filtered_indices: Vec::new(),
-            filter_dirty: false,
+            filter_dirty: true,
             auto_scroll: settings.auto_scroll,
             scroll_to_bottom: false,
             selected_log_id: None,
@@ -175,27 +175,10 @@ impl NlogcatApp {
         let Ok(mut buffer) = self.state.log_buffer.lock() else {
             return;
         };
-        let will_evict = buffer.len() + new_entries.len() > buffer.max_size();
-
-        if will_evict || self.state.filter_dirty {
-            for entry in new_entries {
-                buffer.push(entry);
-            }
-            self.state.filter_dirty = true;
-        } else {
-            let start_idx = buffer.len();
-            for entry in new_entries {
-                buffer.push(entry);
-            }
-            let end_idx = buffer.len();
-            for i in start_idx..end_idx {
-                if let Some(e) = buffer.entries().get(i) {
-                    if crate::engine::filter::FilterEngine::matches(e, &self.state.filter) {
-                        self.state.filtered_indices.push(i);
-                    }
-                }
-            }
+        for entry in new_entries {
+            buffer.push(entry);
         }
+        self.state.filter_dirty = true;
     }
 
     fn check_search_debounce(&mut self) {
