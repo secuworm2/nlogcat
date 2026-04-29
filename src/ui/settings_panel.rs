@@ -2,7 +2,7 @@ use egui::{Frame, Margin, RichText, Rounding, Stroke};
 
 use crate::app::AppState;
 use crate::config::settings::{self, AppSettings, Theme};
-use crate::theme::colors::{BG_ELEVATED, BORDER_DEFAULT, OVERLAY_SCRIM, TEXT_PRIMARY, TEXT_SECONDARY};
+use crate::theme::colors::{BG_ELEVATED, BORDER_DEFAULT, TEXT_PRIMARY, TEXT_SECONDARY};
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
     if !state.show_settings {
@@ -13,12 +13,6 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         state.show_settings = false;
         return;
     }
-
-    ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Middle,
-        egui::Id::new("settings_scrim"),
-    ))
-    .rect_filled(ctx.screen_rect(), 0.0, OVERLAY_SCRIM);
 
     let mut close = false;
     let mut changed = false;
@@ -97,17 +91,22 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
     ui.horizontal(|ui| {
         ui.label(RichText::new("폰트").color(TEXT_SECONDARY));
         ui.add_space(8.0);
-        let current_label = crate::theme::fonts::FONT_OPTIONS
-            .iter()
-            .find(|(k, _)| *k == state.settings.font_family)
-            .map_or("기본", |(_, v)| v);
         let prev_font = state.settings.font_family.clone();
         egui::ComboBox::from_id_source("font_family_combo")
-            .selected_text(current_label)
-            .width(150.0)
+            .selected_text(&state.settings.font_family)
+            .width(200.0)
             .show_ui(ui, |ui| {
-                for &(key, label) in crate::theme::fonts::FONT_OPTIONS {
-                    ui.selectable_value(&mut state.settings.font_family, key.to_string(), label);
+                ui.selectable_value(
+                    &mut state.settings.font_family,
+                    "Default".to_string(),
+                    "기본",
+                );
+                for info in crate::theme::font_scanner::system_monospace_fonts() {
+                    ui.selectable_value(
+                        &mut state.settings.font_family,
+                        info.display_name.clone(),
+                        &info.display_name,
+                    );
                 }
             });
         if state.settings.font_family != prev_font {

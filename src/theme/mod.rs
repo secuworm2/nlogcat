@@ -1,4 +1,5 @@
 pub mod colors;
+pub mod font_scanner;
 pub mod fonts;
 
 use egui::{Color32, Stroke};

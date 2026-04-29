@@ -91,6 +91,8 @@ impl NlogcatApp {
         let (device_result_tx, device_rx) = mpsc::channel::<Vec<Device>>(4);
         let (pid_map_tx, pid_map_rx) = mpsc::channel::<HashMap<u32, String>>(4);
 
+        tokio::task::spawn_blocking(|| crate::theme::font_scanner::warm_up());
+
         let adb_path_result = AdbManager::resolve_adb_path(settings.adb_path.as_deref());
         let initial_adb_error = adb_path_result.as_ref().err().map(ToString::to_string);
         let adb_path = adb_path_result.ok();
