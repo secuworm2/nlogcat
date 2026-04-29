@@ -51,6 +51,8 @@ pub struct AppState {
     pub last_error_time: Option<Instant>,
     pub pid_map: HashMap<u32, String>,
     pub col_widths: ColumnWidths,
+    pub scroll_to_row: Option<usize>,
+    pub table_visible_height: f32,
 }
 
 impl AppState {
@@ -145,6 +147,8 @@ impl NlogcatApp {
             last_error_time: None,
             pid_map: HashMap::new(),
             col_widths: ColumnWidths::default(),
+            scroll_to_row: None,
+            table_visible_height: 400.0,
         };
 
         Self {
@@ -173,8 +177,9 @@ impl eframe::App for NlogcatApp {
         self.manage_streaming();
         self.tick_error_dismiss();
 
+        let wants_kb = ctx.wants_keyboard_input();
         let (copy_requested, size_changed) = ctx.input(|i| {
-            let copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
+            let copy = !wants_kb && i.modifiers.ctrl && i.key_pressed(egui::Key::C);
             let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
             (copy, size)
         });

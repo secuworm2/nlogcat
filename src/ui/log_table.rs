@@ -31,6 +31,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let mut single_clicked: Option<(usize, u64)> = None; // (filtered_pos, entry_id)
     let mut double_clicked_id: Option<u64> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
+    let scroll_to_row = state.scroll_to_row;
+    let table_visible_height = state.table_visible_height;
 
     let modifiers = ui.ctx().input(|i| i.modifiers);
 
@@ -49,6 +51,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         if should_scroll_to_bottom {
             scroll_area =
                 scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);
+        } else if let Some(target_row) = scroll_to_row {
+            let row_y = target_row as f32 * row_height;
+            let target_offset = (row_y - table_visible_height / 2.0 + row_height / 2.0).max(0.0);
+            scroll_area = scroll_area.vertical_scroll_offset(target_offset);
         }
 
         let output = scroll_area.show_rows(ui, row_height, total_rows, |ui, row_range| {
@@ -94,6 +100,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     if should_scroll_to_bottom {
         state.scroll_to_bottom = false;
     }
+    if scroll_to_row.is_some() {
+        state.scroll_to_row = None;
+    }
+    state.table_visible_height = visible_height;
 
     if content_height > 0.0 {
         let max_scroll = (content_height - visible_height).max(0.0);
@@ -178,6 +188,7 @@ fn navigate_focus(state: &mut AppState, delta: i64) {
         state.selected_log_ids.clear();
         state.selected_log_ids.insert(id);
         state.last_click_idx = Some(new_pos);
+        state.scroll_to_row = Some(new_pos);
     }
 }
 
