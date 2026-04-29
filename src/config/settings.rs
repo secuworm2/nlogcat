@@ -8,6 +8,10 @@ pub enum Theme {
     Light,
 }
 
+fn default_font_family() -> String {
+    "JetBrainsMono".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub theme: Theme,
@@ -17,6 +21,8 @@ pub struct AppSettings {
     pub auto_scroll: bool,
     pub window_width: f32,
     pub window_height: f32,
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
 }
 
 impl Default for AppSettings {
@@ -29,6 +35,7 @@ impl Default for AppSettings {
             auto_scroll: true,
             window_width: 1280.0,
             window_height: 800.0,
+            font_family: default_font_family(),
         }
     }
 }

@@ -83,7 +83,7 @@ impl NlogcatApp {
             Theme::Light => cc.egui_ctx.set_visuals(crate::theme::light_visuals()),
         }
         cc.egui_ctx
-            .set_fonts(crate::theme::fonts::build_font_definitions());
+            .set_fonts(crate::theme::fonts::build_font_definitions_with_family(&settings.font_family));
 
         let log_buffer = Arc::new(Mutex::new(LogBuffer::new(settings.max_buffer_lines)));
         let (log_tx, log_rx) = mpsc::channel::<LogEntry>(10_000);
@@ -194,12 +194,22 @@ impl eframe::App for NlogcatApp {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
 
-        // Apply clipboard copy AFTER all UI renders so we win over any TextEdit in the same frame
+        // Apply clipboard copy AFTER all UI renders.
+        // If a selectable label already wrote copied_text (e.g. message area),
+        // respect that and do not overwrite with log-row content.
         if copy_requested && !self.state.selected_log_ids.is_empty() {
             let text = self.build_copy_content();
-            ctx.output_mut(|o| o.copied_text = text);
             let count = self.state.selected_log_ids.len();
-            self.state.save_status = Some((format!("{count}줄 복사됨"), Instant::now()));
+            let mut did_copy = false;
+            ctx.output_mut(|o| {
+                if o.copied_text.is_empty() {
+                    o.copied_text = text;
+                    did_copy = true;
+                }
+            });
+            if did_copy {
+                self.state.save_status = Some((format!("{count}줄 복사됨"), Instant::now()));
+            }
         }
 
         // While streaming, drive repaints at ~30fps so eframe doesn't go idle.

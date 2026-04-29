@@ -63,12 +63,11 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                         .id_source("detail_panel_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            let mut msg = entry.message.clone();
                             ui.add(
-                                egui::TextEdit::multiline(&mut msg)
-                                    .font(egui::TextStyle::Monospace)
-                                    .interactive(false)
-                                    .desired_width(f32::INFINITY),
+                                egui::Label::new(
+                                    RichText::new(&entry.message).monospace().color(TEXT_PRIMARY),
+                                )
+                                .selectable(true),
                             );
                         });
                 }

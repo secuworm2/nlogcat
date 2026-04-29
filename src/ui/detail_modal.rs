@@ -163,12 +163,11 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
         .max_height(180.0)
         .id_source("detail_msg_scroll")
         .show(ui, |ui| {
-            let mut msg = entry.message.clone();
             ui.add(
-                egui::TextEdit::multiline(&mut msg)
-                    .font(egui::TextStyle::Monospace)
-                    .interactive(false)
-                    .desired_width(f32::INFINITY),
+                egui::Label::new(
+                    egui::RichText::new(&entry.message).monospace(),
+                )
+                .selectable(true),
             );
         });
 

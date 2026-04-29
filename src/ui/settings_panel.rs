@@ -67,7 +67,7 @@ fn render_header(ui: &mut egui::Ui, close: &mut bool) {
     ui.horizontal(|ui| {
         ui.label(RichText::new("설정").strong().color(TEXT_PRIMARY));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("✕").clicked() {
+            if ui.button("X").clicked() {
                 *close = true;
             }
         });
@@ -88,6 +88,33 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
         }
         if ui.small_button("+").clicked() {
             state.settings.font_size = (state.settings.font_size + 1.0).clamp(10.0, 18.0);
+            *changed = true;
+        }
+    });
+
+    ui.add_space(4.0);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("폰트").color(TEXT_SECONDARY));
+        ui.add_space(8.0);
+        let current_label = crate::theme::fonts::FONT_OPTIONS
+            .iter()
+            .find(|(k, _)| *k == state.settings.font_family)
+            .map_or("기본", |(_, v)| v);
+        let prev_font = state.settings.font_family.clone();
+        egui::ComboBox::from_id_source("font_family_combo")
+            .selected_text(current_label)
+            .width(150.0)
+            .show_ui(ui, |ui| {
+                for &(key, label) in crate::theme::fonts::FONT_OPTIONS {
+                    ui.selectable_value(&mut state.settings.font_family, key.to_string(), label);
+                }
+            });
+        if state.settings.font_family != prev_font {
+            let new_fonts = crate::theme::fonts::build_font_definitions_with_family(
+                &state.settings.font_family,
+            );
+            ui.ctx().set_fonts(new_fonts);
             *changed = true;
         }
     });
