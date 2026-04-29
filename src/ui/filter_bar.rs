@@ -1,6 +1,7 @@
-use egui::{Color32, RichText, Stroke, TextEdit};
+use egui::{Color32, ComboBox, RichText, Stroke, TextEdit};
 
 use crate::app::AppState;
+use crate::model::filter_state::SearchField;
 use crate::model::LogLevel;
 use crate::theme::colors::{
     level_label_color, BG_HOVER, BORDER_DEFAULT, PRIMARY, TEXT_PRIMARY, TEXT_SECONDARY,
@@ -13,6 +14,14 @@ const LEVELS: &[(LogLevel, &str)] = &[
     (LogLevel::Warn, "W"),
     (LogLevel::Error, "E"),
     (LogLevel::Fatal, "F"),
+];
+
+const SEARCH_FIELDS: &[SearchField] = &[
+    SearchField::All,
+    SearchField::Tag,
+    SearchField::Pid,
+    SearchField::Package,
+    SearchField::Message,
 ];
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
@@ -34,13 +43,29 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
         ui.add_space(8.0);
 
+        ComboBox::from_id_source("search_field_combo")
+            .selected_text(state.filter.search_field.label())
+            .width(68.0)
+            .show_ui(ui, |ui| {
+                for field in SEARCH_FIELDS {
+                    let selected = state.filter.search_field == *field;
+                    if ui.selectable_label(selected, field.label()).clicked() && !selected {
+                        state.filter.search_field = field.clone();
+                        if !state.filter.search_query.is_empty() {
+                            state.filter_dirty = true;
+                        }
+                    }
+                }
+            });
+
+        ui.add_space(4.0);
+
         let search_resp = ui.add(
             TextEdit::singleline(&mut state.filter.search_query)
                 .hint_text("검색어 입력")
-                .desired_width(160.0),
+                .desired_width(220.0),
         );
         if search_resp.changed() {
-            // Debounce: set filter_dirty after 150ms to avoid recompute on every keystroke
             state.search_debounce_until =
                 Some(std::time::Instant::now() + std::time::Duration::from_millis(150));
         }
@@ -51,56 +76,6 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             state.filter.case_sensitive = !state.filter.case_sensitive;
             state.filter_dirty = true;
         }
-
-        ui.add_space(8.0);
-
-        // Tag input: raw string stored in egui temp memory, parsed to Vec<String> on change
-        let tag_id = egui::Id::new("filter_bar_tag");
-        let mut tag_str: String = ui
-            .data_mut(|d| d.get_temp::<String>(tag_id))
-            .unwrap_or_else(|| state.filter.tag_includes.join(", "));
-        let tag_resp = ui.add(
-            TextEdit::singleline(&mut tag_str)
-                .hint_text("태그 (콤마 구분)")
-                .desired_width(140.0),
-        );
-        if tag_resp.changed() {
-            state.filter.tag_includes = tag_str
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            state.filter_dirty = true;
-        }
-        ui.data_mut(|d| d.insert_temp(tag_id, tag_str));
-
-        ui.add_space(8.0);
-
-        // PID input: raw string stored in egui temp memory, digits only, parsed to Option<u32>
-        let pid_id = egui::Id::new("filter_bar_pid");
-        let mut pid_str: String = ui
-            .data_mut(|d| d.get_temp::<String>(pid_id))
-            .unwrap_or_else(|| {
-                state
-                    .filter
-                    .pid_filter
-                    .map_or(String::new(), |p| p.to_string())
-            });
-        let pid_resp = ui.add(
-            TextEdit::singleline(&mut pid_str)
-                .hint_text("PID")
-                .desired_width(70.0),
-        );
-        if pid_resp.changed() {
-            pid_str.retain(|c| c.is_ascii_digit());
-            state.filter.pid_filter = if pid_str.is_empty() {
-                None
-            } else {
-                pid_str.parse::<u32>().ok()
-            };
-            state.filter_dirty = true;
-        }
-        ui.data_mut(|d| d.insert_temp(pid_id, pid_str));
     });
 }
 
@@ -115,7 +90,7 @@ fn level_toggle(
         let w = &mut ui.style_mut().visuals.widgets;
         if active {
             let [r, g, b, _] = color.to_array();
-            let bg = Color32::from_rgba_unmultiplied(r, g, b, 51); // 20% opacity
+            let bg = Color32::from_rgba_unmultiplied(r, g, b, 51);
             w.inactive.weak_bg_fill = bg;
             w.inactive.bg_fill = bg;
             w.inactive.fg_stroke = Stroke::new(1.0, color);
@@ -178,11 +153,9 @@ fn case_button(ui: &mut egui::Ui, active: bool) -> egui::Response {
             w.active.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
         }
         ui.add(
-            egui::Button::new(RichText::new("Aa").color(if active {
-                PRIMARY
-            } else {
-                TEXT_SECONDARY
-            }))
+            egui::Button::new(
+                RichText::new("Aa").color(if active { PRIMARY } else { TEXT_SECONDARY }),
+            )
             .fill(Color32::TRANSPARENT),
         )
     })

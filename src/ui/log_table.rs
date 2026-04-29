@@ -1,27 +1,20 @@
-use std::collections::HashMap;
-
-use egui::{Color32, FontId};
-
-use crate::app::AppState;
+use crate::app::{AppState, ColumnWidths};
 use crate::engine::search::SearchEngine;
 use crate::model::LogEntry;
 use crate::theme::colors::{
     level_label_color, level_row_bg, BG_SELECTED, BG_SURFACE, TEXT_PRIMARY, TEXT_SECONDARY,
 };
+use egui::{Color32, FontId};
 
-// Column widths per TRD §3.2
-const COL_TIME: f32 = 160.0;
-const COL_LV: f32 = 32.0;
-const COL_TAG: f32 = 140.0;
-const COL_PID: f32 = 60.0;
-const COL_PKG: f32 = 160.0;
 const HEADER_HEIGHT: f32 = 24.0;
+const HANDLE_W: f32 = 8.0;
+const MIN_COL_W: f32 = 30.0;
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let font_size = state.settings.font_size;
     let row_height = font_size + 8.0;
 
-    render_header(ui);
+    render_header(ui, &mut state.col_widths);
 
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
@@ -29,26 +22,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let mut clicked_id: Option<u64> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
 
-    // Borrow scope: immutable borrows on state.filtered_indices and state.log_buffer.
-    // Returns scroll metrics so we can update state after the borrows are released.
     let (scroll_offset_y, content_height, visible_height) = {
         let filtered_indices = &state.filtered_indices;
         let log_buffer = &state.log_buffer;
         let selected_log_id = state.selected_log_id;
         let pid_map = &state.pid_map;
+        let widths = &state.col_widths;
 
         let total_rows = filtered_indices.len();
 
         let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
-
         if should_scroll_to_bottom {
-            // f32::MAX causes egui layout assertion failure; use a large finite value
-            // that always exceeds content height so egui clamps it to the true bottom.
-            scroll_area = scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);
+            scroll_area =
+                scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);
         }
 
         let output = scroll_area.show_rows(ui, row_height, total_rows, |ui, row_range| {
-            let Ok(buf) = log_buffer.lock() else { return; };
+            let Ok(buf) = log_buffer.lock() else {
+                return;
+            };
             let entries = buf.entries();
 
             for row_idx in row_range {
@@ -60,8 +52,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                     let is_selected = selected_log_id == Some(entry.id);
                     let entry_id = entry.id;
                     let pkg_name = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
-                    if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height, pkg_name)
-                        .clicked()
+                    if render_row(
+                        ui,
+                        entry,
+                        is_selected,
+                        &search_query,
+                        case_sensitive,
+                        font_size,
+                        row_height,
+                        pkg_name,
+                        widths,
+                    )
+                    .clicked()
                     {
                         clicked_id = Some(entry_id);
                     }
@@ -72,16 +74,13 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         (output.state.offset.y, output.content_size.y, output.inner_rect.height())
     };
 
-    // Clear the one-shot flag after use
     if should_scroll_to_bottom {
         state.scroll_to_bottom = false;
     }
 
-    // Detect scroll position: at bottom → enable auto_scroll, scrolled up → disable
     if content_height > 0.0 {
         let max_scroll = (content_height - visible_height).max(0.0);
         let at_bottom = scroll_offset_y >= max_scroll - 2.0;
-
         if at_bottom && !state.auto_scroll {
             state.auto_scroll = true;
         } else if !at_bottom && state.auto_scroll {
@@ -94,18 +93,30 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     }
 }
 
-fn render_header(ui: &mut egui::Ui) {
+fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, HEADER_HEIGHT), egui::Sense::hover());
     ui.painter().rect_filled(rect, 0.0, BG_SURFACE);
 
-    let painter = ui.painter();
-    let font = FontId::proportional(11.0);
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
+    let font = FontId::proportional(11.0);
 
-    for (col_x, label) in header_cols(x) {
-        painter.text(
+    let lv_x = x + widths.time;
+    let tag_x = lv_x + widths.level;
+    let pid_x = tag_x + widths.tag;
+    let pkg_x = pid_x + widths.pid;
+    let msg_x = pkg_x + widths.pkg;
+
+    for (col_x, label) in [
+        (x, "시간"),
+        (lv_x, "Lv"),
+        (tag_x, "태그"),
+        (pid_x, "PID"),
+        (pkg_x, "패키지"),
+        (msg_x, "메시지"),
+    ] {
+        ui.painter().text(
             egui::pos2(col_x, y),
             egui::Align2::LEFT_CENTER,
             label,
@@ -113,17 +124,43 @@ fn render_header(ui: &mut egui::Ui) {
             TEXT_SECONDARY,
         );
     }
-}
 
-fn header_cols(x: f32) -> [(f32, &'static str); 6] {
-    [
-        (x, "시간"),
-        (x + COL_TIME, "Lv"),
-        (x + COL_TIME + COL_LV, "태그"),
-        (x + COL_TIME + COL_LV + COL_TAG, "PID"),
-        (x + COL_TIME + COL_LV + COL_TAG + COL_PID, "패키지"),
-        (x + COL_TIME + COL_LV + COL_TAG + COL_PID + COL_PKG, "메시지"),
-    ]
+    // Drag handles — thin interactive strips at each column boundary
+    let boundaries = [lv_x, tag_x, pid_x, pkg_x, msg_x];
+    let handle_ids = ["cr_time", "cr_lv", "cr_tag", "cr_pid", "cr_pkg"];
+    let mut drag: Option<(usize, f32)> = None;
+
+    for (i, (&bx, &hid)) in boundaries.iter().zip(handle_ids.iter()).enumerate() {
+        let hr = egui::Rect::from_center_size(
+            egui::pos2(bx, rect.center().y),
+            egui::vec2(HANDLE_W, HEADER_HEIGHT),
+        );
+        let resp = ui.interact(hr, ui.id().with(hid), egui::Sense::drag());
+
+        if resp.hovered() || resp.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            ui.painter().vline(
+                bx,
+                rect.min.y..=rect.max.y,
+                egui::Stroke::new(1.0, Color32::from_white_alpha(80)),
+            );
+        }
+
+        if resp.dragged() {
+            drag = Some((i, resp.drag_delta().x));
+        }
+    }
+
+    if let Some((i, dx)) = drag {
+        match i {
+            0 => widths.time = (widths.time + dx).max(MIN_COL_W),
+            1 => widths.level = (widths.level + dx).max(20.0),
+            2 => widths.tag = (widths.tag + dx).max(MIN_COL_W),
+            3 => widths.pid = (widths.pid + dx).max(MIN_COL_W),
+            4 => widths.pkg = (widths.pkg + dx).max(MIN_COL_W),
+            _ => {}
+        }
+    }
 }
 
 fn render_row(
@@ -135,6 +172,7 @@ fn render_row(
     font_size: f32,
     row_height: f32,
     pkg_name: &str,
+    widths: &ColumnWidths,
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
@@ -154,14 +192,12 @@ fn render_row(
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
 
-    // Pre-compute column start positions
-    let lv_x   = x + COL_TIME;
-    let tag_x  = lv_x + COL_LV;
-    let pid_x  = tag_x + COL_TAG;
-    let pkg_x  = pid_x + COL_PID;
-    let msg_x  = pkg_x + COL_PKG;
+    let lv_x = x + widths.time;
+    let tag_x = lv_x + widths.level;
+    let pid_x = tag_x + widths.tag;
+    let pkg_x = pid_x + widths.pid;
+    let msg_x = pkg_x + widths.pkg;
 
-    // Helper: build a clip rect spanning the column, bounded by the row height.
     let col_clip = |start: f32, width: f32| {
         egui::Rect::from_min_max(
             egui::pos2(start, rect.min.y),
@@ -169,41 +205,71 @@ fn render_row(
         )
     };
 
-    // Time
     ui.painter()
-        .with_clip_rect(col_clip(x, COL_TIME))
-        .text(egui::pos2(x, y), egui::Align2::LEFT_CENTER,
-              format!("{} {}", entry.date, entry.time), font.clone(), TEXT_SECONDARY);
+        .with_clip_rect(col_clip(x, widths.time))
+        .text(
+            egui::pos2(x, y),
+            egui::Align2::LEFT_CENTER,
+            format!("{} {}", entry.date, entry.time),
+            font.clone(),
+            TEXT_SECONDARY,
+        );
 
-    // Level badge
     ui.painter()
-        .with_clip_rect(col_clip(lv_x, COL_LV))
-        .text(egui::pos2(lv_x, y), egui::Align2::LEFT_CENTER,
-              entry.level.label(), font.clone(), level_label_color(entry.level));
+        .with_clip_rect(col_clip(lv_x, widths.level))
+        .text(
+            egui::pos2(lv_x, y),
+            egui::Align2::LEFT_CENTER,
+            entry.level.label(),
+            font.clone(),
+            level_label_color(entry.level),
+        );
 
-    // Tag
-    paint_cell(ui, &entry.tag, TEXT_PRIMARY, egui::pos2(tag_x, y),
-               font.clone(), search_query, case_sensitive, col_clip(tag_x, COL_TAG));
+    paint_cell(
+        ui,
+        &entry.tag,
+        TEXT_PRIMARY,
+        egui::pos2(tag_x, y),
+        font.clone(),
+        search_query,
+        case_sensitive,
+        col_clip(tag_x, widths.tag),
+    );
 
-    // PID
     ui.painter()
-        .with_clip_rect(col_clip(pid_x, COL_PID))
-        .text(egui::pos2(pid_x, y), egui::Align2::LEFT_CENTER,
-              entry.pid.to_string(), font.clone(), TEXT_SECONDARY);
+        .with_clip_rect(col_clip(pid_x, widths.pid))
+        .text(
+            egui::pos2(pid_x, y),
+            egui::Align2::LEFT_CENTER,
+            entry.pid.to_string(),
+            font.clone(),
+            TEXT_SECONDARY,
+        );
 
-    // Package name
     ui.painter()
-        .with_clip_rect(col_clip(pkg_x, COL_PKG))
-        .text(egui::pos2(pkg_x, y), egui::Align2::LEFT_CENTER,
-              pkg_name, font.clone(), TEXT_SECONDARY);
+        .with_clip_rect(col_clip(pkg_x, widths.pkg))
+        .text(
+            egui::pos2(pkg_x, y),
+            egui::Align2::LEFT_CENTER,
+            pkg_name,
+            font.clone(),
+            TEXT_SECONDARY,
+        );
 
-    // Message — clips to the right edge of the row
     let msg_clip = egui::Rect::from_min_max(
         egui::pos2(msg_x, rect.min.y),
         egui::pos2(rect.max.x, rect.max.y),
     );
-    paint_cell(ui, &entry.message, TEXT_PRIMARY, egui::pos2(msg_x, y),
-               font, search_query, case_sensitive, msg_clip);
+    paint_cell(
+        ui,
+        &entry.message,
+        TEXT_PRIMARY,
+        egui::pos2(msg_x, y),
+        font,
+        search_query,
+        case_sensitive,
+        msg_clip,
+    );
 
     response
 }

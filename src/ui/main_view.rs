@@ -28,7 +28,7 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     }
 
     egui::TopBottomPanel::top("filter_bar")
-        .exact_height(56.0)
+        .exact_height(40.0)
         .frame(Frame::none().fill(BG_SURFACE))
         .show(ctx, |ui| {
             crate::ui::filter_bar::render(ui, state);

@@ -2,12 +2,33 @@ use std::collections::HashSet;
 
 use super::log_entry::LogLevel;
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum SearchField {
+    #[default]
+    All,
+    Tag,
+    Pid,
+    Package,
+    Message,
+}
+
+impl SearchField {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::All => "전체",
+            Self::Tag => "태그",
+            Self::Pid => "PID",
+            Self::Package => "패키지",
+            Self::Message => "메시지",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FilterState {
     pub levels: HashSet<LogLevel>,
-    pub tag_includes: Vec<String>,
-    pub pid_filter: Option<u32>,
     pub search_query: String,
+    pub search_field: SearchField,
     pub case_sensitive: bool,
 }
 
@@ -22,9 +43,8 @@ impl Default for FilterState {
                 LogLevel::Error,
                 LogLevel::Fatal,
             ]),
-            tag_includes: Vec::new(),
-            pid_filter: None,
             search_query: String::new(),
+            search_field: SearchField::All,
             case_sensitive: false,
         }
     }

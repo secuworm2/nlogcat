@@ -1,5 +1,20 @@
 use std::collections::HashMap;
 use std::io::Write as IoWrite;
+
+#[derive(Clone)]
+pub struct ColumnWidths {
+    pub time: f32,
+    pub level: f32,
+    pub tag: f32,
+    pub pid: f32,
+    pub pkg: f32,
+}
+
+impl Default for ColumnWidths {
+    fn default() -> Self {
+        Self { time: 160.0, level: 32.0, tag: 140.0, pid: 60.0, pkg: 160.0 }
+    }
+}
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -32,6 +47,7 @@ pub struct AppState {
     pub last_error: Option<String>,
     pub last_error_time: Option<Instant>,
     pub pid_map: HashMap<u32, String>,
+    pub col_widths: ColumnWidths,
 }
 
 impl AppState {
@@ -121,6 +137,7 @@ impl NlogcatApp {
             last_error: None,
             last_error_time: None,
             pid_map: HashMap::new(),
+            col_widths: ColumnWidths::default(),
         };
 
         Self {
@@ -224,7 +241,11 @@ impl NlogcatApp {
             let Ok(buffer) = self.state.log_buffer.lock() else {
                 return;
             };
-            crate::engine::filter::FilterEngine::compute_indices(&buffer, &self.state.filter)
+            crate::engine::filter::FilterEngine::compute_indices(
+                &buffer,
+                &self.state.filter,
+                &self.state.pid_map,
+            )
         };
         self.state.filtered_indices = new_indices;
         self.state.filter_dirty = false;

@@ -1,46 +1,64 @@
+use std::collections::HashMap;
+
+use crate::model::filter_state::SearchField;
 use crate::model::{FilterState, LogBuffer, LogEntry};
 
 pub struct FilterEngine;
 
 impl FilterEngine {
-    /// Returns true if the entry passes all active filter criteria.
-    /// Priority: level → tag (OR) → PID → search query (AND).
     #[must_use]
-    pub fn matches(entry: &LogEntry, filter: &FilterState) -> bool {
+    pub fn matches(
+        entry: &LogEntry,
+        filter: &FilterState,
+        pid_map: &HashMap<u32, String>,
+    ) -> bool {
         if !filter.levels.contains(&entry.level) {
             return false;
         }
 
-        if !filter.tag_includes.is_empty() {
-            let matched = if filter.case_sensitive {
-                filter.tag_includes.iter().any(|t| entry.tag.contains(t.as_str()))
-            } else {
-                let lower = entry.tag.to_lowercase();
-                filter
-                    .tag_includes
-                    .iter()
-                    .any(|t| lower.contains(t.to_lowercase().as_str()))
-            };
-            if !matched {
-                return false;
-            }
-        }
-
-        if let Some(pid) = filter.pid_filter {
-            if entry.pid != pid {
-                return false;
-            }
-        }
-
         if !filter.search_query.is_empty() {
-            let found = if filter.case_sensitive {
-                entry.message.contains(filter.search_query.as_str())
-                    || entry.tag.contains(filter.search_query.as_str())
-            } else {
-                let q = filter.search_query.to_lowercase();
-                entry.message.to_lowercase().contains(&q)
-                    || entry.tag.to_lowercase().contains(&q)
+            let q = filter.search_query.as_str();
+            let pkg = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
+
+            let found = match &filter.search_field {
+                SearchField::All => {
+                    if filter.case_sensitive {
+                        entry.tag.contains(q)
+                            || entry.message.contains(q)
+                            || entry.pid.to_string().contains(q)
+                            || pkg.contains(q)
+                    } else {
+                        let q_low = q.to_lowercase();
+                        entry.tag.to_lowercase().contains(&q_low)
+                            || entry.message.to_lowercase().contains(&q_low)
+                            || entry.pid.to_string().contains(&q_low)
+                            || pkg.to_lowercase().contains(&q_low)
+                    }
+                }
+                SearchField::Tag => {
+                    if filter.case_sensitive {
+                        entry.tag.contains(q)
+                    } else {
+                        entry.tag.to_lowercase().contains(&q.to_lowercase())
+                    }
+                }
+                SearchField::Pid => entry.pid.to_string().contains(q),
+                SearchField::Package => {
+                    if filter.case_sensitive {
+                        pkg.contains(q)
+                    } else {
+                        pkg.to_lowercase().contains(&q.to_lowercase())
+                    }
+                }
+                SearchField::Message => {
+                    if filter.case_sensitive {
+                        entry.message.contains(q)
+                    } else {
+                        entry.message.to_lowercase().contains(&q.to_lowercase())
+                    }
+                }
             };
+
             if !found {
                 return false;
             }
@@ -49,27 +67,17 @@ impl FilterEngine {
         true
     }
 
-    /// Scans the entire buffer and returns indices of entries that pass the filter.
     #[must_use]
-    pub fn compute_indices(buffer: &LogBuffer, filter: &FilterState) -> Vec<usize> {
+    pub fn compute_indices(
+        buffer: &LogBuffer,
+        filter: &FilterState,
+        pid_map: &HashMap<u32, String>,
+    ) -> Vec<usize> {
         buffer
             .entries()
             .iter()
             .enumerate()
-            .filter_map(|(i, e)| Self::matches(e, filter).then_some(i))
+            .filter_map(|(i, e)| Self::matches(e, filter, pid_map).then_some(i))
             .collect()
-    }
-
-    /// Appends `entry_index` to `indices` if the entry matches the filter.
-    /// Used for incremental updates when a single new entry is added to the buffer.
-    pub fn append_if_matches(
-        entry: &LogEntry,
-        filter: &FilterState,
-        indices: &mut Vec<usize>,
-        entry_index: usize,
-    ) {
-        if Self::matches(entry, filter) {
-            indices.push(entry_index);
-        }
     }
 }
