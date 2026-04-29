@@ -15,6 +15,11 @@ mod theme;
 use app::NlogcatApp;
 
 fn main() {
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("{info}");
+        let _ = std::fs::write("nlogcat_crash.log", msg);
+    }));
+
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {

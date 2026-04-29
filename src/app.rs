@@ -131,8 +131,8 @@ impl eframe::App for NlogcatApp {
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
         self.handle_save_request();
-        self.manage_streaming();
         self.check_stream_health();
+        self.manage_streaming();
         self.tick_error_dismiss();
 
         ctx.input(|i| {

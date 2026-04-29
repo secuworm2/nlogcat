@@ -38,7 +38,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
 
         if should_scroll_to_bottom {
-            scroll_area = scroll_area.vertical_scroll_offset(f32::MAX);
+            // f32::MAX causes egui layout assertion failure; use a large finite value
+            // that always exceeds content height so egui clamps it to the true bottom.
+            scroll_area = scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);
         }
 
         let output = scroll_area.show_rows(ui, row_height, total_rows, |ui, row_range| {
@@ -46,7 +48,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             let entries = buf.entries();
 
             for row_idx in row_range {
-                let entry_idx = filtered_indices[row_idx];
+                let Some(&entry_idx) = filtered_indices.get(row_idx) else {
+                    continue;
+                };
 
                 if let Some(entry) = entries.get(entry_idx) {
                     let is_selected = selected_log_id == Some(entry.id);
