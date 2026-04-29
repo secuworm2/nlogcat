@@ -161,9 +161,9 @@ impl eframe::App for NlogcatApp {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
 
-        // While streaming, schedule repaints at ~10fps to avoid continuous flickering.
+        // While streaming, drive repaints at ~30fps so eframe doesn't go idle.
         if self.state.is_streaming {
-            ctx.request_repaint_after(Duration::from_millis(100));
+            ctx.request_repaint_after(Duration::from_millis(33));
         }
     }
 
@@ -174,14 +174,10 @@ impl eframe::App for NlogcatApp {
 
 impl NlogcatApp {
     fn drain_log_channel(&mut self) {
-        // Throttle to at most 10 redraws per second to prevent flickering.
-        if self.last_drain.elapsed() < Duration::from_millis(100) {
-            return;
-        }
-
-        const MAX_PER_DRAIN: usize = 2000;
+        // Always drain the channel so the buffer stays current.
+        const MAX_PER_FRAME: usize = 500;
         let mut new_entries = Vec::new();
-        for _ in 0..MAX_PER_DRAIN {
+        for _ in 0..MAX_PER_FRAME {
             match self.state.log_rx.try_recv() {
                 Ok(entry) => new_entries.push(entry),
                 Err(_) => break,
@@ -191,19 +187,24 @@ impl NlogcatApp {
             return;
         }
 
-        self.last_drain = Instant::now();
-
-        if self.state.auto_scroll {
-            self.state.scroll_to_bottom = true;
-        }
-
         let Ok(mut buffer) = self.state.log_buffer.lock() else {
             return;
         };
         for entry in new_entries {
             buffer.push(entry);
         }
-        self.state.filter_dirty = true;
+        drop(buffer);
+
+        // Trigger a visual refresh at ~30fps so the table redraws in batches
+        // rather than line-by-line at 60fps, which causes eye-straining flicker.
+        let now = Instant::now();
+        if now.duration_since(self.last_drain) >= Duration::from_millis(33) {
+            self.last_drain = now;
+            if self.state.auto_scroll {
+                self.state.scroll_to_bottom = true;
+            }
+            self.state.filter_dirty = true;
+        }
     }
 
     fn check_search_debounce(&mut self) {
