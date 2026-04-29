@@ -9,13 +9,13 @@ use crate::theme::colors::{
 const COPY_FEEDBACK_ID: &str = "detail_copy_time";
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
-    let Some(log_id) = state.selected_log_id else {
+    let Some(log_id) = state.detail_log_id else {
         return;
     };
 
     // Key handling: ESC closes, ↑/↓ navigate filtered entries
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.selected_log_id = None;
+        state.detail_log_id = None;
         return;
     }
     if ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
@@ -27,14 +27,14 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
 
     let entry = {
         let Ok(buffer) = state.log_buffer.lock() else {
-            state.selected_log_id = None;
+            state.detail_log_id = None;
             return;
         };
         buffer.find_by_id(log_id).cloned()
     };
 
     let Some(entry) = entry else {
-        state.selected_log_id = None;
+        state.detail_log_id = None;
         return;
     };
 
@@ -57,13 +57,13 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         });
 
     if close {
-        state.selected_log_id = None;
+        state.detail_log_id = None;
     }
 }
 
-/// Move `selected_log_id` by `delta` steps within `filtered_indices`.
+/// Move `detail_log_id` by `delta` steps within `filtered_indices`.
 fn navigate(state: &mut AppState, delta: i64) {
-    let Some(log_id) = state.selected_log_id else {
+    let Some(log_id) = state.detail_log_id else {
         return;
     };
 
@@ -110,7 +110,7 @@ fn navigate(state: &mut AppState, delta: i64) {
     };
 
     if let Some(id) = new_id {
-        state.selected_log_id = Some(id);
+        state.detail_log_id = Some(id);
     }
 }
 
@@ -118,7 +118,7 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
     ui.horizontal(|ui| {
         ui.label(RichText::new("로그 상세").strong().color(TEXT_PRIMARY));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("✕").clicked() {
+            if ui.button("X").clicked() {
                 *close = true;
             }
         });

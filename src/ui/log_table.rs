@@ -19,13 +19,17 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
 
-    let mut clicked_id: Option<u64> = None;
+    let mut single_clicked: Option<(usize, u64)> = None; // (filtered_pos, entry_id)
+    let mut double_clicked_id: Option<u64> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
+
+    let modifiers = ui.ctx().input(|i| i.modifiers);
 
     let (scroll_offset_y, content_height, visible_height) = {
         let filtered_indices = &state.filtered_indices;
         let log_buffer = &state.log_buffer;
-        let selected_log_id = state.selected_log_id;
+        let selected_log_ids = &state.selected_log_ids;
+        let detail_log_id = state.detail_log_id;
         let pid_map = &state.pid_map;
         let widths = &state.col_widths;
 
@@ -49,10 +53,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 };
 
                 if let Some(entry) = entries.get(entry_idx) {
-                    let is_selected = selected_log_id == Some(entry.id);
+                    let is_selected = selected_log_ids.contains(&entry.id)
+                        || detail_log_id == Some(entry.id);
                     let entry_id = entry.id;
                     let pkg_name = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
-                    if render_row(
+                    let resp = render_row(
                         ui,
                         entry,
                         is_selected,
@@ -62,10 +67,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         row_height,
                         pkg_name,
                         widths,
-                    )
-                    .clicked()
-                    {
-                        clicked_id = Some(entry_id);
+                    );
+                    if resp.double_clicked() {
+                        double_clicked_id = Some(entry_id);
+                    } else if resp.clicked() {
+                        single_clicked = Some((row_idx, entry_id));
                     }
                 }
             }
@@ -88,8 +94,43 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         }
     }
 
-    if let Some(id) = clicked_id {
-        state.selected_log_id = Some(id);
+    if let Some(id) = double_clicked_id {
+        state.detail_log_id = Some(id);
+    }
+
+    if let Some((row_idx, entry_id)) = single_clicked {
+        if modifiers.ctrl {
+            if state.selected_log_ids.contains(&entry_id) {
+                state.selected_log_ids.remove(&entry_id);
+            } else {
+                state.selected_log_ids.insert(entry_id);
+            }
+            state.last_click_idx = Some(row_idx);
+        } else if modifiers.shift {
+            if let Some(anchor) = state.last_click_idx {
+                let lo = anchor.min(row_idx);
+                let hi = anchor.max(row_idx);
+                let Ok(buf) = state.log_buffer.lock() else {
+                    return;
+                };
+                let entries = buf.entries();
+                for pos in lo..=hi {
+                    if let Some(&idx) = state.filtered_indices.get(pos) {
+                        if let Some(e) = entries.get(idx) {
+                            state.selected_log_ids.insert(e.id);
+                        }
+                    }
+                }
+            } else {
+                state.selected_log_ids.clear();
+                state.selected_log_ids.insert(entry_id);
+                state.last_click_idx = Some(row_idx);
+            }
+        } else {
+            state.selected_log_ids.clear();
+            state.selected_log_ids.insert(entry_id);
+            state.last_click_idx = Some(row_idx);
+        }
     }
 }
 

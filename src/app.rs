@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write as IoWrite;
 
 #[derive(Clone)]
@@ -35,7 +35,9 @@ pub struct AppState {
     pub filter_dirty: bool,
     pub auto_scroll: bool,
     pub scroll_to_bottom: bool,
-    pub selected_log_id: Option<u64>,
+    pub detail_log_id: Option<u64>,
+    pub selected_log_ids: HashSet<u64>,
+    pub last_click_idx: Option<usize>,
     pub show_settings: bool,
     pub show_help: bool,
     pub save_requested: bool,
@@ -125,7 +127,9 @@ impl NlogcatApp {
             filter_dirty: true,
             auto_scroll: settings.auto_scroll,
             scroll_to_bottom: false,
-            selected_log_id: None,
+            detail_log_id: None,
+            selected_log_ids: HashSet::new(),
+            last_click_idx: None,
             show_settings: false,
             show_help: false,
             save_requested: false,
@@ -165,12 +169,19 @@ impl eframe::App for NlogcatApp {
         self.manage_streaming();
         self.tick_error_dismiss();
 
-        ctx.input(|i| {
-            if let Some(rect) = i.viewport().inner_rect {
-                self.state.settings.window_width = rect.width();
-                self.state.settings.window_height = rect.height();
-            }
+        let (copy_requested, size_changed) = ctx.input(|i| {
+            let copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
+            let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
+            (copy, size)
         });
+        if let Some((w, h)) = size_changed {
+            self.state.settings.window_width = w;
+            self.state.settings.window_height = h;
+        }
+        if copy_requested && !self.state.selected_log_ids.is_empty() {
+            let text = self.build_copy_content();
+            ctx.output_mut(|o| o.copied_text = text);
+        }
 
         if self.state.selected_device.is_some() {
             crate::ui::main_view::render(ctx, &mut self.state);
@@ -421,5 +432,22 @@ impl NlogcatApp {
                 self.state.last_error_time = None;
             }
         }
+    }
+
+    fn build_copy_content(&self) -> String {
+        let Ok(buffer) = self.state.log_buffer.lock() else {
+            return String::new();
+        };
+        let entries = buffer.entries();
+        let mut out = String::new();
+        for &idx in &self.state.filtered_indices {
+            if let Some(entry) = entries.get(idx) {
+                if self.state.selected_log_ids.contains(&entry.id) {
+                    out.push_str(&entry.raw);
+                    out.push('\n');
+                }
+            }
+        }
+        out
     }
 }
