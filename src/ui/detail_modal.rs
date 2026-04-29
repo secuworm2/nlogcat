@@ -3,13 +3,27 @@ use egui::{Frame, Margin, RichText, Rounding, Stroke};
 use crate::app::AppState;
 use crate::model::LogEntry;
 use crate::theme::colors::{
-    level_label_color, BG_ELEVATED, BORDER_DEFAULT, OVERLAY_SCRIM, TEXT_PRIMARY, TEXT_SECONDARY,
+    level_label_color, BG_ELEVATED, BORDER_DEFAULT, TEXT_PRIMARY, TEXT_SECONDARY,
 };
 
 const COPY_FEEDBACK_ID: &str = "detail_copy_time";
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
-    let Some(log_id) = state.selected_log_id else { return };
+    let Some(log_id) = state.selected_log_id else {
+        return;
+    };
+
+    // Key handling: ESC closes, ↑/↓ navigate filtered entries
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        state.selected_log_id = None;
+        return;
+    }
+    if ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+        navigate(state, -1);
+    }
+    if ctx.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
+        navigate(state, 1);
+    }
 
     let entry = {
         let Ok(buffer) = state.log_buffer.lock() else {
@@ -23,19 +37,6 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         state.selected_log_id = None;
         return;
     };
-
-    // ESC to close
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.selected_log_id = None;
-        return;
-    }
-
-    // Full-screen scrim (drawn before the window so it is behind it)
-    ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Middle,
-        egui::Id::new("detail_scrim"),
-    ))
-    .rect_filled(ctx.screen_rect(), 0.0, OVERLAY_SCRIM);
 
     let mut close = false;
 
@@ -60,8 +61,60 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     }
 }
 
+/// Move `selected_log_id` by `delta` steps within `filtered_indices`.
+fn navigate(state: &mut AppState, delta: i64) {
+    let Some(log_id) = state.selected_log_id else {
+        return;
+    };
+
+    // Resolve log_id → buffer index
+    let cur_buf_idx = {
+        let Ok(buf) = state.log_buffer.lock() else {
+            return;
+        };
+        buf.entries()
+            .iter()
+            .enumerate()
+            .find(|(_, e)| e.id == log_id)
+            .map(|(i, _)| i)
+    };
+    let Some(cur_buf_idx) = cur_buf_idx else {
+        return;
+    };
+
+    // Find current position in filtered_indices
+    let Some(cur_pos) = state
+        .filtered_indices
+        .iter()
+        .position(|&idx| idx == cur_buf_idx)
+    else {
+        return;
+    };
+
+    let len = state.filtered_indices.len();
+    let new_pos = (cur_pos as i64 + delta).clamp(0, len as i64 - 1) as usize;
+    if new_pos == cur_pos {
+        return;
+    }
+
+    // Resolve new buffer index → log id
+    let new_id = {
+        let Ok(buf) = state.log_buffer.lock() else {
+            return;
+        };
+        state
+            .filtered_indices
+            .get(new_pos)
+            .and_then(|&ni| buf.entries().get(ni))
+            .map(|e| e.id)
+    };
+
+    if let Some(id) = new_id {
+        state.selected_log_id = Some(id);
+    }
+}
+
 fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
-    // ── Header ─────────────────────────────────────────────────────────────
     ui.horizontal(|ui| {
         ui.label(RichText::new("로그 상세").strong().color(TEXT_PRIMARY));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -74,7 +127,6 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
     ui.separator();
     ui.add_space(8.0);
 
-    // ── Field grid ─────────────────────────────────────────────────────────
     egui::Grid::new("detail_fields")
         .num_columns(2)
         .spacing([12.0, 6.0])
@@ -104,7 +156,6 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
     ui.separator();
     ui.add_space(8.0);
 
-    // ── Message area ───────────────────────────────────────────────────────
     ui.label(RichText::new("메시지").color(TEXT_SECONDARY));
     ui.add_space(4.0);
 
@@ -123,7 +174,6 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
 
     ui.add_space(8.0);
 
-    // ── Copy button with 1-second feedback ─────────────────────────────────
     let copy_id = egui::Id::new(COPY_FEEDBACK_ID);
     let copy_time: Option<f64> = ui.ctx().data(|d| d.get_temp(copy_id));
     let now = ui.ctx().input(|i| i.time);

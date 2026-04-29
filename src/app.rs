@@ -282,10 +282,13 @@ impl NlogcatApp {
                 self.state.set_error("저장 실패: 버퍼 잠금 오류".to_string());
                 return;
             };
-            let mut out = String::with_capacity(buffer.len() * 80);
-            for entry in buffer.entries() {
-                out.push_str(&entry.raw);
-                out.push('\n');
+            let entries = buffer.entries();
+            let mut out = String::with_capacity(self.state.filtered_indices.len() * 80);
+            for &idx in &self.state.filtered_indices {
+                if let Some(entry) = entries.get(idx) {
+                    out.push_str(&entry.raw);
+                    out.push('\n');
+                }
             }
             out
         };
