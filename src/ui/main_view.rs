@@ -41,6 +41,8 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
             crate::ui::status_bar::render(ui, state);
         });
 
+    crate::ui::detail_panel::render(ctx, state);
+
     egui::CentralPanel::default().show(ctx, |ui| {
         crate::ui::log_table::render(ui, state);
     });

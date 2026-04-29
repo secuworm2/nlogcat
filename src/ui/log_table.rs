@@ -19,6 +19,15 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
 
+    // Arrow key navigation (only when detail modal is not open)
+    if state.detail_log_id.is_none() {
+        let (up, down) = ui.ctx().input(|i| {
+            (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown))
+        });
+        if up { navigate_focus(state, -1); }
+        if down { navigate_focus(state, 1); }
+    }
+
     let mut single_clicked: Option<(usize, u64)> = None; // (filtered_pos, entry_id)
     let mut double_clicked_id: Option<u64> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
@@ -30,6 +39,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         let log_buffer = &state.log_buffer;
         let selected_log_ids = &state.selected_log_ids;
         let detail_log_id = state.detail_log_id;
+        let focused_log_id = state.focused_log_id;
         let pid_map = &state.pid_map;
         let widths = &state.col_widths;
 
@@ -54,7 +64,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
                 if let Some(entry) = entries.get(entry_idx) {
                     let is_selected = selected_log_ids.contains(&entry.id)
-                        || detail_log_id == Some(entry.id);
+                        || detail_log_id == Some(entry.id)
+                        || focused_log_id == Some(entry.id);
                     let entry_id = entry.id;
                     let pkg_name = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
                     let resp = render_row(
@@ -99,6 +110,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     }
 
     if let Some((row_idx, entry_id)) = single_clicked {
+        state.focused_log_id = Some(entry_id);
         if modifiers.ctrl {
             if state.selected_log_ids.contains(&entry_id) {
                 state.selected_log_ids.remove(&entry_id);
@@ -131,6 +143,41 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             state.selected_log_ids.insert(entry_id);
             state.last_click_idx = Some(row_idx);
         }
+    }
+}
+
+fn navigate_focus(state: &mut AppState, delta: i64) {
+    let cur_pos = state.focused_log_id.and_then(|id| {
+        let Ok(buf) = state.log_buffer.lock() else { return None; };
+        let cur_buf_idx = buf.entries().iter().enumerate()
+            .find(|(_, e)| e.id == id)
+            .map(|(i, _)| i)?;
+        state.filtered_indices.iter().position(|&idx| idx == cur_buf_idx)
+    });
+
+    let len = state.filtered_indices.len();
+    if len == 0 { return; }
+
+    let new_pos = match cur_pos {
+        Some(pos) => (pos as i64 + delta).clamp(0, len as i64 - 1) as usize,
+        None if delta > 0 => 0,
+        None => len - 1,
+    };
+
+    if cur_pos == Some(new_pos) { return; }
+
+    let new_id = {
+        let Ok(buf) = state.log_buffer.lock() else { return; };
+        state.filtered_indices.get(new_pos)
+            .and_then(|&ni| buf.entries().get(ni))
+            .map(|e| e.id)
+    };
+
+    if let Some(id) = new_id {
+        state.focused_log_id = Some(id);
+        state.selected_log_ids.clear();
+        state.selected_log_ids.insert(id);
+        state.last_click_idx = Some(new_pos);
     }
 }
 

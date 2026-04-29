@@ -4,5 +4,6 @@ pub mod toolbar;
 pub mod filter_bar;
 pub mod log_table;
 pub mod status_bar;
+pub mod detail_panel;
 pub mod detail_modal;
 pub mod settings_panel;
