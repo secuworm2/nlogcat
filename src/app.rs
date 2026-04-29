@@ -178,7 +178,8 @@ impl eframe::App for NlogcatApp {
         self.tick_error_dismiss();
 
         let (copy_requested, size_changed) = ctx.input(|i| {
-            let copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
+            let copy = (i.modifiers.ctrl && i.key_pressed(egui::Key::C))
+                || i.events.iter().any(|e| matches!(e, egui::Event::Copy));
             let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
             (copy, size)
         });
@@ -196,9 +197,9 @@ impl eframe::App for NlogcatApp {
         // Apply clipboard copy AFTER all UI renders so we win over any TextEdit in the same frame
         if copy_requested && !self.state.selected_log_ids.is_empty() {
             let text = self.build_copy_content();
-            if !text.is_empty() {
-                ctx.output_mut(|o| o.copied_text = text);
-            }
+            ctx.output_mut(|o| o.copied_text = text);
+            let count = self.state.selected_log_ids.len();
+            self.state.save_status = Some((format!("{count}줄 복사됨"), Instant::now()));
         }
 
         // While streaming, drive repaints at ~30fps so eframe doesn't go idle.

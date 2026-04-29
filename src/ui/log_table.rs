@@ -33,6 +33,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let should_scroll_to_bottom = state.scroll_to_bottom;
     let scroll_to_row = state.scroll_to_row;
     let table_visible_height = state.table_visible_height;
+    // show_rows positions rows at (row_height + item_spacing_y) intervals
+    let row_height_full = row_height + ui.spacing().item_spacing.y;
 
     let modifiers = ui.ctx().input(|i| i.modifiers);
 
@@ -52,8 +54,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             scroll_area =
                 scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);
         } else if let Some(target_row) = scroll_to_row {
-            let row_y = target_row as f32 * row_height;
-            let target_offset = (row_y - table_visible_height / 2.0 + row_height / 2.0).max(0.0);
+            let row_y = target_row as f32 * row_height_full;
+            let target_offset = (row_y - table_visible_height / 2.0 + row_height_full / 2.0).max(0.0);
             scroll_area = scroll_area.vertical_scroll_offset(target_offset);
         }
 
