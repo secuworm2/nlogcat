@@ -30,7 +30,7 @@ impl Default for AppSettings {
         Self {
             theme: Theme::Dark,
             font_size: 12.0,
-            max_buffer_lines: 50_000,
+            max_buffer_lines: 300_000,
             adb_path: None,
             auto_scroll: true,
             window_width: 1280.0,
@@ -80,7 +80,7 @@ mod tests {
         let s = AppSettings::default();
         assert_eq!(s.theme, Theme::Dark);
         assert_eq!(s.font_size, 12.0_f32);
-        assert_eq!(s.max_buffer_lines, 50_000);
+        assert_eq!(s.max_buffer_lines, 300_000);
         assert!(s.auto_scroll);
         assert_eq!(s.window_width, 1280.0_f32);
         assert_eq!(s.window_height, 800.0_f32);

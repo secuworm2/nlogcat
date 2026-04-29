@@ -47,7 +47,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
         let total_rows = filtered_indices.len();
 
-        let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+        let mut scroll_area = egui::ScrollArea::vertical().auto_shrink([false, false]).drag_to_scroll(false);
         if should_scroll_to_bottom {
             scroll_area =
                 scroll_area.vertical_scroll_offset(total_rows as f32 * row_height * 2.0);

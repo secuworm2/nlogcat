@@ -72,26 +72,54 @@ pub fn save(painter: &Painter, rect: Rect, color: Color32) {
     );
 }
 
-/// Sliders icon (modern settings metaphor): 3 horizontal bars with circular knobs.
-pub fn settings(painter: &Painter, rect: Rect, color: Color32) {
+pub fn refresh(painter: &Painter, rect: Rect, color: Color32) {
+    use std::f32::consts::PI;
+    let cx = rect.center().x;
+    let cy = rect.center().y;
+    let r = rect.width().min(rect.height()) * 0.36;
+    let stroke = Stroke::new(1.5, color);
+
+    let start = -PI / 2.0 + PI / 6.0;
+    let end = -PI / 2.0 + 2.0 * PI - PI / 6.0;
+    let arc: Vec<Pos2> = (0..=32)
+        .map(|i| {
+            let a = start + (end - start) * i as f32 / 32.0;
+            Pos2::new(cx + r * a.cos(), cy + r * a.sin())
+        })
+        .collect();
+    painter.add(Shape::line(arc, stroke));
+
+    let tip = Pos2::new(cx + r * end.cos(), cy + r * end.sin());
+    let tx = -end.sin();
+    let ty = end.cos();
+    let al = r * 0.58;
+    let aw = r * 0.34;
+    let base = Pos2::new(tip.x - tx * al, tip.y - ty * al);
+    let a1 = Pos2::new(base.x - ty * aw, base.y + tx * aw);
+    let a2 = Pos2::new(base.x + ty * aw, base.y - tx * aw);
+    painter.add(Shape::convex_polygon(vec![tip, a1, a2], color, Stroke::NONE));
+}
+
+pub fn gear(painter: &Painter, rect: Rect, color: Color32) {
+    use std::f32::consts::PI;
+    let cx = rect.center().x;
+    let cy = rect.center().y;
+    let outer_r = rect.width().min(rect.height()) * 0.44;
+    let inner_r = outer_r * 0.68;
+    let hole_r = outer_r * 0.28;
+    let n: usize = 8;
+    let period = PI * 2.0 / n as f32;
+    let tooth_half = period * 0.25;
     let s = Stroke::new(1.5, color);
-    let pad_x = rect.width() * 0.06;
-    let knob_r = rect.height() * 0.13;
 
-    for (fy, kfx) in [(0.25_f32, 0.70_f32), (0.5, 0.38), (0.75, 0.62)] {
-        let y = rect.min.y + rect.height() * fy;
-        let kx = rect.min.x + rect.width() * kfx;
-        let knob = Pos2::new(kx, y);
-
-        // Bar left of knob
-        if kx - knob_r - 1.0 > rect.min.x + pad_x {
-            painter.hline((rect.min.x + pad_x)..=(kx - knob_r - 1.0), y, s);
+    let mut pts: Vec<Pos2> = Vec::with_capacity(3 * n);
+    for i in 0..n {
+        let ca = period * i as f32;
+        for &(r, da) in &[(inner_r, -period * 0.5), (outer_r, -tooth_half), (outer_r, tooth_half)] {
+            let a = ca + da;
+            pts.push(Pos2::new(cx + r * a.cos(), cy + r * a.sin()));
         }
-        // Bar right of knob
-        if kx + knob_r + 1.0 < rect.max.x - pad_x {
-            painter.hline((kx + knob_r + 1.0)..=(rect.max.x - pad_x), y, s);
-        }
-        // Knob outline only
-        painter.circle_stroke(knob, knob_r, s);
     }
+    painter.add(Shape::closed_line(pts, s));
+    painter.circle_stroke(Pos2::new(cx, cy), hole_r, s);
 }

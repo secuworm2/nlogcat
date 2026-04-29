@@ -78,7 +78,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
         ui.add_space(2.0);
 
-        if danger_icon_button(ui, crate::ui::icons::trash, "초기화").clicked() {
+        if danger_icon_button(ui, crate::ui::icons::refresh, "초기화").clicked() {
             if let Ok(mut buf) = state.log_buffer.lock() {
                 buf.clear();
             }
@@ -101,7 +101,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
             ui.add_space(2.0);
 
-            if icon_button(ui, crate::ui::icons::settings, "설정").clicked() {
+            if icon_button(ui, crate::ui::icons::gear, "설정").clicked() {
                 state.show_settings = !state.show_settings;
             }
         });
