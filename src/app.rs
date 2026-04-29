@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::io::Write as IoWrite;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-use crate::adb::{list_devices, AdbManager};
+use crate::adb::{list_devices, query_pid_map, AdbManager};
 use crate::config::settings::{self, AppSettings, Theme};
 use crate::model::{Device, FilterState, LogBuffer, LogEntry};
 
@@ -30,6 +31,7 @@ pub struct AppState {
     pub save_status: Option<(String, Instant)>,
     pub last_error: Option<String>,
     pub last_error_time: Option<Instant>,
+    pub pid_map: HashMap<u32, String>,
 }
 
 impl AppState {
@@ -44,6 +46,8 @@ pub struct NlogcatApp {
     device_rx: mpsc::Receiver<Vec<Device>>,
     pub log_tx: mpsc::Sender<LogEntry>,
     adb_manager: Option<AdbManager>,
+    pid_map_rx: mpsc::Receiver<HashMap<u32, String>>,
+    pid_map_tx: mpsc::Sender<HashMap<u32, String>>,
 }
 
 impl NlogcatApp {
@@ -61,6 +65,7 @@ impl NlogcatApp {
         let (log_tx, log_rx) = mpsc::channel::<LogEntry>(10_000);
         let (device_poll_tx, mut device_poll_rx) = mpsc::channel::<()>(1);
         let (device_result_tx, device_rx) = mpsc::channel::<Vec<Device>>(4);
+        let (pid_map_tx, pid_map_rx) = mpsc::channel::<HashMap<u32, String>>(4);
 
         let adb_path_result = AdbManager::resolve_adb_path(settings.adb_path.as_deref());
         let initial_adb_error = adb_path_result.as_ref().err().map(ToString::to_string);
@@ -113,6 +118,7 @@ impl NlogcatApp {
             save_status: None,
             last_error: None,
             last_error_time: None,
+            pid_map: HashMap::new(),
         };
 
         Self {
@@ -120,6 +126,8 @@ impl NlogcatApp {
             device_rx,
             log_tx,
             adb_manager,
+            pid_map_rx,
+            pid_map_tx,
         }
     }
 }
@@ -128,6 +136,7 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_log_channel();
         self.drain_device_channel();
+        self.drain_pid_map_channel();
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
         self.handle_save_request();
@@ -210,6 +219,12 @@ impl NlogcatApp {
         }
     }
 
+    fn drain_pid_map_channel(&mut self) {
+        while let Ok(map) = self.pid_map_rx.try_recv() {
+            self.state.pid_map = map;
+        }
+    }
+
     fn handle_save_request(&mut self) {
         if !self.state.save_requested {
             return;
@@ -276,7 +291,19 @@ impl NlogcatApp {
             Some(ref mut mgr) => {
                 if self.state.is_streaming && !mgr.is_streaming() {
                     match mgr.start_stream(&serial, self.log_tx.clone()) {
-                        Ok(()) => {}
+                        Ok(()) => {
+                            let adb_path = mgr.adb_path.clone();
+                            let serial_clone = serial.clone();
+                            let tx = self.pid_map_tx.clone();
+                            tokio::spawn(async move {
+                                let map = tokio::task::spawn_blocking(move || {
+                                    query_pid_map(&adb_path, &serial_clone)
+                                })
+                                .await
+                                .unwrap_or_default();
+                                let _ = tx.send(map).await;
+                            });
+                        }
                         Err(e) => {
                             self.state.is_streaming = false;
                             self.state.set_error(e.to_string());

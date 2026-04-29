@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use egui::{Color32, FontId};
 
 use crate::app::AppState;
@@ -12,6 +14,7 @@ const COL_TIME: f32 = 160.0;
 const COL_LV: f32 = 32.0;
 const COL_TAG: f32 = 140.0;
 const COL_PID: f32 = 60.0;
+const COL_PKG: f32 = 160.0;
 const HEADER_HEIGHT: f32 = 24.0;
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
@@ -32,6 +35,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         let filtered_indices = &state.filtered_indices;
         let log_buffer = &state.log_buffer;
         let selected_log_id = state.selected_log_id;
+        let pid_map = &state.pid_map;
 
         let total_rows = filtered_indices.len();
 
@@ -55,7 +59,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 if let Some(entry) = entries.get(entry_idx) {
                     let is_selected = selected_log_id == Some(entry.id);
                     let entry_id = entry.id;
-                    if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height)
+                    let pkg_name = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
+                    if render_row(ui, entry, is_selected, &search_query, case_sensitive, font_size, row_height, pkg_name)
                         .clicked()
                     {
                         clicked_id = Some(entry_id);
@@ -110,13 +115,14 @@ fn render_header(ui: &mut egui::Ui) {
     }
 }
 
-fn header_cols(x: f32) -> [(f32, &'static str); 5] {
+fn header_cols(x: f32) -> [(f32, &'static str); 6] {
     [
         (x, "시간"),
         (x + COL_TIME, "Lv"),
         (x + COL_TIME + COL_LV, "태그"),
         (x + COL_TIME + COL_LV + COL_TAG, "PID"),
-        (x + COL_TIME + COL_LV + COL_TAG + COL_PID, "메시지"),
+        (x + COL_TIME + COL_LV + COL_TAG + COL_PID, "패키지"),
+        (x + COL_TIME + COL_LV + COL_TAG + COL_PID + COL_PKG, "메시지"),
     ]
 }
 
@@ -128,6 +134,7 @@ fn render_row(
     case_sensitive: bool,
     font_size: f32,
     row_height: f32,
+    pkg_name: &str,
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
@@ -185,12 +192,21 @@ fn render_row(
         TEXT_SECONDARY,
     );
 
+    // Package name (no highlighting)
+    ui.painter().text(
+        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID, y),
+        egui::Align2::LEFT_CENTER,
+        pkg_name,
+        font.clone(),
+        TEXT_SECONDARY,
+    );
+
     // Message — highlight if search query matches
     paint_cell(
         ui,
         &entry.message,
         TEXT_PRIMARY,
-        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID, y),
+        egui::pos2(x + COL_TIME + COL_LV + COL_TAG + COL_PID + COL_PKG, y),
         font,
         search_query,
         case_sensitive,

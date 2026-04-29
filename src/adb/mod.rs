@@ -3,7 +3,7 @@ pub mod manager;
 pub mod parser;
 pub mod streamer;
 
-pub use device::{get_device_model, list_devices};
+pub use device::{get_device_model, list_devices, query_pid_map};
 pub use manager::AdbManager;
 pub use parser::LogParser;
 pub use streamer::AdbStreamer;

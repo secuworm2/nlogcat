@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::path::Path;
 
@@ -48,6 +49,34 @@ fn parse_device_line(line: &str) -> Option<Device> {
         state,
         model: None,
     })
+}
+
+#[must_use]
+pub fn query_pid_map(adb_path: &Path, serial: &str) -> HashMap<u32, String> {
+    let Ok(output) = std::process::Command::new(adb_path)
+        .args(["-s", serial, "shell", "ps", "-A"])
+        .output()
+    else {
+        return HashMap::new();
+    };
+    parse_ps_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_ps_output(stdout: &str) -> HashMap<u32, String> {
+    let mut map = HashMap::new();
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 2 || parts[1] == "PID" {
+            continue;
+        }
+        let Ok(pid) = parts[1].parse::<u32>() else {
+            continue;
+        };
+        if let Some(&name) = parts.last() {
+            map.insert(pid, name.to_string());
+        }
+    }
+    map
 }
 
 #[must_use]
