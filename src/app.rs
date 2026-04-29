@@ -193,7 +193,7 @@ impl eframe::App for NlogcatApp {
         if scroll_delta != 0.0 {
             let delta = if scroll_delta > 0.0 { 1.0_f32 } else { -1.0_f32 };
             self.state.settings.font_size =
-                (self.state.settings.font_size + delta).clamp(10.0, 24.0);
+                (self.state.settings.font_size + delta).clamp(8.0, 24.0);
             let _ = settings::save(&self.state.settings);
         }
 

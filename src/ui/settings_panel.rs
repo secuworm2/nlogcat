@@ -84,11 +84,11 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
         ui.add_space(8.0);
         ui.label(RichText::new(format!("{:.0}", state.settings.font_size)).color(text_color));
         if ui.small_button("−").clicked() {
-            state.settings.font_size = (state.settings.font_size - 1.0).clamp(10.0, 24.0);
+            state.settings.font_size = (state.settings.font_size - 1.0).clamp(8.0, 24.0);
             *changed = true;
         }
         if ui.small_button("+").clicked() {
-            state.settings.font_size = (state.settings.font_size + 1.0).clamp(10.0, 24.0);
+            state.settings.font_size = (state.settings.font_size + 1.0).clamp(8.0, 24.0);
             *changed = true;
         }
     });
