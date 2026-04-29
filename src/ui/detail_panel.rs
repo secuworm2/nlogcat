@@ -38,27 +38,31 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                     });
                 }
                 Some(entry) => {
+                    let font_size = state.settings.font_size;
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("{} {}", entry.date, entry.time))
                                 .color(weak_text)
-                                .monospace(),
+                                .monospace()
+                                .size(font_size),
                         );
                         ui.add_space(8.0);
                         ui.label(
                             RichText::new(entry.level.label())
                                 .color(level_label_color(entry.level, dark_mode))
-                                .monospace(),
+                                .monospace()
+                                .size(font_size),
                         );
                         ui.add_space(8.0);
                         ui.label(
-                            RichText::new(&entry.tag).color(text_color).monospace(),
+                            RichText::new(&entry.tag).color(text_color).monospace().size(font_size),
                         );
                         ui.add_space(8.0);
                         ui.label(
                             RichText::new(format!("PID:{}", entry.pid))
                                 .color(weak_text)
-                                .monospace(),
+                                .monospace()
+                                .size(font_size),
                         );
                     });
 
@@ -70,7 +74,10 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                         .show(ui, |ui| {
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&entry.message).monospace().color(text_color),
+                                    RichText::new(&entry.message)
+                                        .monospace()
+                                        .color(text_color)
+                                        .size(font_size),
                                 )
                                 .selectable(true),
                             );

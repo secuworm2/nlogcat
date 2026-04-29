@@ -1,3 +1,4 @@
+pub mod icons;
 pub mod main_view;
 pub mod empty_view;
 pub mod toolbar;
