@@ -54,6 +54,7 @@ pub struct AppState {
     pub col_widths: ColumnWidths,
     pub scroll_to_row: Option<usize>,
     pub table_visible_height: f32,
+    pub table_top_y: f32,
     pub drag_select_anchor: Option<usize>,
 }
 
@@ -154,6 +155,7 @@ impl NlogcatApp {
             col_widths: ColumnWidths::default(),
             scroll_to_row: None,
             table_visible_height: 400.0,
+            table_top_y: 0.0,
             drag_select_anchor: None,
         };
 

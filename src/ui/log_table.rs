@@ -38,38 +38,56 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             }
         }
         if delete && !state.selected_log_ids.is_empty() {
-            let focused_deleted = state.focused_log_id
-                .is_some_and(|id| state.selected_log_ids.contains(&id));
             if let Ok(mut buf) = state.log_buffer.lock() {
+                // Find position of first selected row before deletion
+                let min_pos = state.filtered_indices.iter().enumerate()
+                    .find_map(|(pos, &idx)| {
+                        buf.entries().get(idx)
+                            .filter(|e| state.selected_log_ids.contains(&e.id))
+                            .map(|_| pos)
+                    });
+
                 buf.remove_by_ids(&state.selected_log_ids);
-                // Recompute synchronously to avoid the scroll-reset caused by clearing indices
+                state.selected_log_ids.clear();
+                state.last_click_idx = None;
+                state.focused_log_id = None;
+
                 state.filtered_indices = crate::engine::filter::FilterEngine::compute_indices(
                     &buf, &state.filter, &state.pid_map,
                 );
+
+                // Auto-select the item that now occupies the first deleted position
+                if let Some(pos) = min_pos {
+                    let target = pos.min(state.filtered_indices.len().saturating_sub(1));
+                    if let Some(&new_idx) = state.filtered_indices.get(target) {
+                        if let Some(e) = buf.entries().get(new_idx) {
+                            state.selected_log_ids.insert(e.id);
+                            state.focused_log_id = Some(e.id);
+                            state.last_click_idx = Some(target);
+                        }
+                    }
+                }
             }
-            state.selected_log_ids.clear();
-            state.last_click_idx = None;
-            if focused_deleted { state.focused_log_id = None; }
         }
     }
 
     let mut single_clicked: Option<(usize, u64)> = None;
     let mut double_clicked_id: Option<u64> = None;
     let mut drag_started_at: Option<(usize, u64)> = None;
-    let mut drag_hover_row: Option<usize> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
     let scroll_to_row = state.scroll_to_row;
     let table_visible_height = state.table_visible_height;
     let row_height_full = row_height + ui.spacing().item_spacing.y;
 
-    let (modifiers, pointer_down, pointer_released) = ui.ctx().input(|i| (
+    let (modifiers, pointer_down, pointer_released, hover_pos_y) = ui.ctx().input(|i| (
         i.modifiers,
         i.pointer.primary_down(),
         i.pointer.primary_released(),
+        i.pointer.hover_pos().map(|p| p.y),
     ));
     let dark_mode = ui.visuals().dark_mode;
 
-    let (scroll_offset_y, content_height, visible_height) = {
+    let (scroll_offset_y, content_height, visible_height, table_top_y) = {
         let filtered_indices = &state.filtered_indices;
         let log_buffer = &state.log_buffer;
         let selected_log_ids = &state.selected_log_ids;
@@ -126,14 +144,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                     } else if resp.clicked() {
                         single_clicked = Some((row_idx, entry_id));
                     }
-                    if resp.hovered() && pointer_down {
-                        drag_hover_row = Some(row_idx);
-                    }
                 }
             }
         });
 
-        (output.state.offset.y, output.content_size.y, output.inner_rect.height())
+        (output.state.offset.y, output.content_size.y, output.inner_rect.height(), output.inner_rect.min.y)
     };
 
     if should_scroll_to_bottom {
@@ -143,6 +158,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         state.scroll_to_row = None;
     }
     state.table_visible_height = visible_height;
+    state.table_top_y = table_top_y;
 
     // Drag-to-select: start
     if let Some((row_idx, entry_id)) = drag_started_at {
@@ -153,19 +169,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         state.last_click_idx = Some(row_idx);
     }
 
-    // Drag-to-select: update selection while dragging
-    if pointer_down {
-        if let (Some(anchor), Some(current)) = (state.drag_select_anchor, drag_hover_row) {
-            if current != anchor || drag_started_at.is_none() {
-                let lo = anchor.min(current);
-                let hi = anchor.max(current);
-                state.selected_log_ids.clear();
-                if let Ok(buf) = state.log_buffer.lock() {
-                    let entries = buf.entries();
-                    for pos in lo..=hi {
-                        if let Some(&idx) = state.filtered_indices.get(pos) {
-                            if let Some(e) = entries.get(idx) {
-                                state.selected_log_ids.insert(e.id);
+    // Drag-to-select: update selection while dragging (ongoing frames, not start frame)
+    if pointer_down && drag_started_at.is_none() {
+        if let Some(anchor) = state.drag_select_anchor {
+            if let Some(py) = hover_pos_y {
+                let total = state.filtered_indices.len();
+                if total > 0 {
+                    let content_y = py - state.table_top_y + scroll_offset_y;
+                    let current = ((content_y / row_height_full).floor() as i64)
+                        .clamp(0, total as i64 - 1) as usize;
+                    let lo = anchor.min(current);
+                    let hi = anchor.max(current);
+                    state.selected_log_ids.clear();
+                    if let Ok(buf) = state.log_buffer.lock() {
+                        let entries = buf.entries();
+                        for pos in lo..=hi {
+                            if let Some(&idx) = state.filtered_indices.get(pos) {
+                                if let Some(e) = entries.get(idx) {
+                                    state.selected_log_ids.insert(e.id);
+                                }
                             }
                         }
                     }
