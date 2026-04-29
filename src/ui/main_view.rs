@@ -1,16 +1,17 @@
 use egui::{Color32, FontId, Frame, Margin};
 
 use crate::app::AppState;
-use crate::theme::colors::BG_SURFACE;
 
 const ERROR_BG: Color32 = Color32::from_rgb(45, 26, 10);
 const ERROR_ACCENT: Color32 = Color32::from_rgb(245, 158, 11);
 const ERROR_TEXT: Color32 = Color32::from_rgb(252, 211, 77);
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
+    let panel_fill = ctx.style().visuals.panel_fill;
+
     egui::TopBottomPanel::top("toolbar")
         .exact_height(40.0)
-        .frame(Frame::none().fill(BG_SURFACE))
+        .frame(Frame::none().fill(panel_fill))
         .show(ctx, |ui| {
             crate::ui::toolbar::render(ui, state);
         });
@@ -29,14 +30,14 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
 
     egui::TopBottomPanel::top("filter_bar")
         .exact_height(40.0)
-        .frame(Frame::none().fill(BG_SURFACE))
+        .frame(Frame::none().fill(panel_fill))
         .show(ctx, |ui| {
             crate::ui::filter_bar::render(ui, state);
         });
 
     egui::TopBottomPanel::bottom("status_bar")
         .exact_height(24.0)
-        .frame(Frame::none().fill(BG_SURFACE))
+        .frame(Frame::none().fill(panel_fill))
         .show(ctx, |ui| {
             crate::ui::status_bar::render(ui, state);
         });
@@ -47,7 +48,6 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         crate::ui::log_table::render(ui, state);
     });
 
-    // Modal overlays — rendered after panels so they appear on top
     crate::ui::detail_modal::render(ctx, state);
     crate::ui::settings_panel::render(ctx, state);
 }

@@ -1,15 +1,12 @@
 use egui::{Color32, FontId, Margin, Rounding, Stroke};
 
 use crate::app::AppState;
-use crate::theme::colors::{BG_ELEVATED, BORDER_DEFAULT};
 
-// Design.md §4.8 경고 배너 색상
 const WARNING_BG: Color32 = Color32::from_rgb(45, 26, 10);
 const WARNING_ACCENT: Color32 = Color32::from_rgb(245, 158, 11);
 const WARNING_TEXT: Color32 = Color32::from_rgb(252, 211, 77);
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
-    // ADB 미설치 경고 배너 (조건부 표시)
     if state.adb_error.is_some() {
         egui::TopBottomPanel::bottom("adb_warning_banner")
             .show_separator_line(false)
@@ -28,21 +25,25 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(v_pad);
 
+            let card_fill = ui.visuals().window_fill;
+            let card_border = ui.visuals().window_stroke.color;
+
             egui::Frame::none()
-                .fill(BG_ELEVATED)
+                .fill(card_fill)
                 .rounding(Rounding::same(6.0))
                 .inner_margin(Margin::same(24.0))
-                .stroke(Stroke::new(1.0, BORDER_DEFAULT))
+                .stroke(Stroke::new(1.0, card_border))
                 .show(ui, |ui| {
                     ui.set_width(300.0);
                     render_card(ui, state);
                 });
         });
     });
+
+    crate::ui::settings_panel::render(ctx, state);
 }
 
 fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
-    // 디바이스 정보를 미리 수집 (borrow 충돌 방지)
     let devices_info: Vec<(String, String)> = state
         .devices
         .iter()
@@ -78,7 +79,6 @@ fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
         ui.label("USB 디버깅 활성화 후\nAndroid 기기를 연결해 주세요.");
         ui.add_space(16.0);
 
-        // 디바이스 드롭다운 — 목록 없으면 비활성
         ui.add_enabled_ui(has_devices, |ui| {
             egui::ComboBox::from_id_source("device_select_scr01")
                 .width(252.0)
@@ -101,7 +101,6 @@ fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
 
         ui.add_space(8.0);
 
-        // 새로고침 버튼 — DevicePoller에 즉시 재조회 요청
         if ui.button("새로고침").clicked() {
             let _ = state.device_poll_tx.try_send(());
         }
@@ -119,18 +118,14 @@ fn render_warning_banner(ui: &mut egui::Ui, message: &str) {
     );
 
     let painter = ui.painter();
-
-    // 배경: #2D1A0A
     painter.rect_filled(rect, 0.0, WARNING_BG);
 
-    // 좌측 강조선: #F59E0B 3px
     let accent_rect = egui::Rect::from_min_max(
         rect.min,
         egui::pos2(rect.min.x + 3.0, rect.max.y),
     );
     painter.rect_filled(accent_rect, 0.0, WARNING_ACCENT);
 
-    // 텍스트: #FCD34D
     painter.text(
         egui::pos2(rect.min.x + 16.0, rect.center().y),
         egui::Align2::LEFT_CENTER,
