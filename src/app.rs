@@ -48,6 +48,8 @@ pub struct NlogcatApp {
     adb_manager: Option<AdbManager>,
     pid_map_rx: mpsc::Receiver<HashMap<u32, String>>,
     pid_map_tx: mpsc::Sender<HashMap<u32, String>>,
+    pid_refresh_task: Option<tokio::task::JoinHandle<()>>,
+    last_drain: Instant,
 }
 
 impl NlogcatApp {
@@ -128,6 +130,8 @@ impl NlogcatApp {
             adb_manager,
             pid_map_rx,
             pid_map_tx,
+            pid_refresh_task: None,
+            last_drain: Instant::now(),
         }
     }
 }
@@ -156,6 +160,11 @@ impl eframe::App for NlogcatApp {
         } else {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
+
+        // While streaming, schedule repaints at ~10fps to avoid continuous flickering.
+        if self.state.is_streaming {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -165,9 +174,14 @@ impl eframe::App for NlogcatApp {
 
 impl NlogcatApp {
     fn drain_log_channel(&mut self) {
-        const MAX_PER_FRAME: usize = 500;
+        // Throttle to at most 10 redraws per second to prevent flickering.
+        if self.last_drain.elapsed() < Duration::from_millis(100) {
+            return;
+        }
+
+        const MAX_PER_DRAIN: usize = 2000;
         let mut new_entries = Vec::new();
-        for _ in 0..MAX_PER_FRAME {
+        for _ in 0..MAX_PER_DRAIN {
             match self.state.log_rx.try_recv() {
                 Ok(entry) => new_entries.push(entry),
                 Err(_) => break,
@@ -176,6 +190,8 @@ impl NlogcatApp {
         if new_entries.is_empty() {
             return;
         }
+
+        self.last_drain = Instant::now();
 
         if self.state.auto_scroll {
             self.state.scroll_to_bottom = true;
@@ -269,10 +285,12 @@ impl NlogcatApp {
 
     fn manage_streaming(&mut self) {
         let Some(serial) = self.state.selected_device.clone() else {
-            if let Some(ref mut mgr) = self.adb_manager {
-                if mgr.is_streaming() {
+            let should_stop = self.adb_manager.as_ref().is_some_and(|m| m.is_streaming());
+            if should_stop {
+                if let Some(ref mut mgr) = self.adb_manager {
                     mgr.stop_stream();
                 }
+                self.stop_pid_refresh();
             }
             if self.state.is_streaming {
                 self.state.is_streaming = false;
@@ -280,39 +298,75 @@ impl NlogcatApp {
             return;
         };
 
-        match self.adb_manager {
+        // Collect decisions from the borrow of adb_manager, then act after borrow ends.
+        enum Action {
+            None,
+            StartStream { adb_path: std::path::PathBuf },
+            StartFailed(String),
+            StopStream,
+        }
+
+        let action = match self.adb_manager {
             None => {
                 if self.state.is_streaming {
-                    self.state.is_streaming = false;
-                    self.state
-                        .set_error("ADB를 찾을 수 없습니다".to_string());
+                    Action::StartFailed("ADB를 찾을 수 없습니다".to_string())
+                } else {
+                    Action::None
                 }
             }
             Some(ref mut mgr) => {
                 if self.state.is_streaming && !mgr.is_streaming() {
+                    let adb_path = mgr.adb_path.clone();
                     match mgr.start_stream(&serial, self.log_tx.clone()) {
-                        Ok(()) => {
-                            let adb_path = mgr.adb_path.clone();
-                            let serial_clone = serial.clone();
-                            let tx = self.pid_map_tx.clone();
-                            tokio::spawn(async move {
-                                let map = tokio::task::spawn_blocking(move || {
-                                    query_pid_map(&adb_path, &serial_clone)
-                                })
-                                .await
-                                .unwrap_or_default();
-                                let _ = tx.send(map).await;
-                            });
-                        }
-                        Err(e) => {
-                            self.state.is_streaming = false;
-                            self.state.set_error(e.to_string());
-                        }
+                        Ok(()) => Action::StartStream { adb_path },
+                        Err(e) => Action::StartFailed(e.to_string()),
                     }
                 } else if !self.state.is_streaming && mgr.is_streaming() {
                     mgr.stop_stream();
+                    Action::StopStream
+                } else {
+                    Action::None
                 }
             }
+        };
+
+        match action {
+            Action::None => {}
+            Action::StartStream { adb_path } => {
+                self.start_pid_refresh(adb_path, serial);
+            }
+            Action::StartFailed(msg) => {
+                self.state.is_streaming = false;
+                self.state.set_error(msg);
+            }
+            Action::StopStream => {
+                self.stop_pid_refresh();
+            }
+        }
+    }
+
+    fn start_pid_refresh(&mut self, adb_path: std::path::PathBuf, serial: String) {
+        self.stop_pid_refresh();
+        let tx = self.pid_map_tx.clone();
+        self.pid_refresh_task = Some(tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                let path = adb_path.clone();
+                let ser = serial.clone();
+                let map = tokio::task::spawn_blocking(move || query_pid_map(&path, &ser))
+                    .await
+                    .unwrap_or_default();
+                if tx.send(map).await.is_err() {
+                    break;
+                }
+            }
+        }));
+    }
+
+    fn stop_pid_refresh(&mut self) {
+        if let Some(task) = self.pid_refresh_task.take() {
+            task.abort();
         }
     }
 
@@ -328,6 +382,7 @@ impl NlogcatApp {
             if let Some(ref mut mgr) = self.adb_manager {
                 mgr.stop_stream();
             }
+            self.stop_pid_refresh();
             self.state.is_streaming = false;
             self.state
                 .set_error("스트림이 예기치 않게 종료되었습니다".to_string());
