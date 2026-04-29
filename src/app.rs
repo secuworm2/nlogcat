@@ -179,15 +179,22 @@ impl eframe::App for NlogcatApp {
         self.manage_streaming();
         self.tick_error_dismiss();
 
-        let (copy_requested, size_changed) = ctx.input(|i| {
+        let (copy_requested, size_changed, scroll_delta) = ctx.input(|i| {
             let copy = (i.modifiers.ctrl && i.key_pressed(egui::Key::C))
                 || i.events.iter().any(|e| matches!(e, egui::Event::Copy));
             let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
-            (copy, size)
+            let scroll = if i.modifiers.ctrl { i.raw_scroll_delta.y } else { 0.0 };
+            (copy, size, scroll)
         });
         if let Some((w, h)) = size_changed {
             self.state.settings.window_width = w;
             self.state.settings.window_height = h;
+        }
+        if scroll_delta != 0.0 {
+            let delta = if scroll_delta > 0.0 { 1.0_f32 } else { -1.0_f32 };
+            self.state.settings.font_size =
+                (self.state.settings.font_size + delta).clamp(10.0, 24.0);
+            let _ = settings::save(&self.state.settings);
         }
 
         if self.state.selected_device.is_some() {

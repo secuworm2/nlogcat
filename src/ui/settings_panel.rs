@@ -2,7 +2,7 @@ use egui::{Frame, Margin, RichText, Rounding, Stroke};
 
 use crate::app::AppState;
 use crate::config::settings::{self, AppSettings, Theme};
-use crate::theme::colors::{BG_ELEVATED, BORDER_DEFAULT, TEXT_PRIMARY, TEXT_SECONDARY};
+use crate::theme::colors::TEXT_PRIMARY;
 
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
     if !state.show_settings {
@@ -14,6 +14,9 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         return;
     }
 
+    let window_fill = ctx.style().visuals.window_fill;
+    let border_color = ctx.style().visuals.window_stroke.color;
+
     let mut close = false;
     let mut changed = false;
 
@@ -24,10 +27,10 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         .min_width(400.0)
         .frame(
             Frame::none()
-                .fill(BG_ELEVATED)
+                .fill(window_fill)
                 .rounding(Rounding::same(6.0))
                 .inner_margin(Margin::same(16.0))
-                .stroke(Stroke::new(1.0, BORDER_DEFAULT)),
+                .stroke(Stroke::new(1.0, border_color)),
         )
         .show(ctx, |ui| {
             render_header(ui, &mut close);
@@ -58,8 +61,9 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
 }
 
 fn render_header(ui: &mut egui::Ui, close: &mut bool) {
+    let text_color = ui.visuals().text_color();
     ui.horizontal(|ui| {
-        ui.label(RichText::new("설정").strong().color(TEXT_PRIMARY));
+        ui.label(RichText::new("설정").strong().color(text_color));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button("X").clicked() {
                 *close = true;
@@ -69,19 +73,22 @@ fn render_header(ui: &mut egui::Ui, close: &mut bool) {
 }
 
 fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut bool) {
-    ui.label(RichText::new("표시").strong().color(TEXT_PRIMARY));
+    let text_color = ui.visuals().text_color();
+    let weak_text = ui.visuals().weak_text_color();
+
+    ui.label(RichText::new("표시").strong().color(text_color));
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("폰트 크기").color(TEXT_SECONDARY));
+        ui.label(RichText::new("폰트 크기").color(weak_text));
         ui.add_space(8.0);
-        ui.label(RichText::new(format!("{:.0}", state.settings.font_size)).color(TEXT_PRIMARY));
+        ui.label(RichText::new(format!("{:.0}", state.settings.font_size)).color(text_color));
         if ui.small_button("−").clicked() {
-            state.settings.font_size = (state.settings.font_size - 1.0).clamp(10.0, 18.0);
+            state.settings.font_size = (state.settings.font_size - 1.0).clamp(10.0, 24.0);
             *changed = true;
         }
         if ui.small_button("+").clicked() {
-            state.settings.font_size = (state.settings.font_size + 1.0).clamp(10.0, 18.0);
+            state.settings.font_size = (state.settings.font_size + 1.0).clamp(10.0, 24.0);
             *changed = true;
         }
     });
@@ -89,7 +96,7 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("폰트").color(TEXT_SECONDARY));
+        ui.label(RichText::new("폰트").color(weak_text));
         ui.add_space(8.0);
         let prev_font = state.settings.font_family.clone();
         egui::ComboBox::from_id_source("font_family_combo")
@@ -121,7 +128,7 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("테마").color(TEXT_SECONDARY));
+        ui.label(RichText::new("테마").color(weak_text));
         ui.add_space(8.0);
         let prev_theme = state.settings.theme.clone();
         ui.radio_value(&mut state.settings.theme, Theme::Dark, "다크");
@@ -134,11 +141,14 @@ fn render_display_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut
 }
 
 fn render_performance_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut bool) {
-    ui.label(RichText::new("성능").strong().color(TEXT_PRIMARY));
+    let text_color = ui.visuals().text_color();
+    let weak_text = ui.visuals().weak_text_color();
+
+    ui.label(RichText::new("성능").strong().color(text_color));
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("최대 버퍼 줄 수").color(TEXT_SECONDARY));
+        ui.label(RichText::new("최대 버퍼 줄 수").color(weak_text));
         ui.add_space(8.0);
         let resp = ui.add(
             egui::DragValue::new(&mut state.settings.max_buffer_lines)
@@ -152,11 +162,14 @@ fn render_performance_section(ui: &mut egui::Ui, state: &mut AppState, changed: 
 }
 
 fn render_adb_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut bool) {
-    ui.label(RichText::new("ADB").strong().color(TEXT_PRIMARY));
+    let text_color = ui.visuals().text_color();
+    let weak_text = ui.visuals().weak_text_color();
+
+    ui.label(RichText::new("ADB").strong().color(text_color));
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("adb 경로").color(TEXT_SECONDARY));
+        ui.label(RichText::new("adb 경로").color(weak_text));
         ui.add_space(8.0);
 
         let mut path_str = state.settings.adb_path.clone().unwrap_or_default();
@@ -175,7 +188,6 @@ fn render_adb_section(ui: &mut egui::Ui, state: &mut AppState, changed: &mut boo
         }
 
         if ui.button("찾기").clicked() {
-            // std::process로 Windows Explorer를 열어 ADB 경로 탐색을 돕는다
             let _ = std::process::Command::new("explorer.exe")
                 .arg(".")
                 .spawn();

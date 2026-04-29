@@ -1,11 +1,7 @@
-use egui::{Color32, Layout, RichText, Stroke};
+use egui::{Color32, Layout, Stroke};
 
 use crate::app::AppState;
-use crate::theme::colors::{
-    BG_ELEVATED, BG_HOVER, BORDER_DEFAULT, STATUS_ERROR, TEXT_PRIMARY, TEXT_SECONDARY,
-};
-
-const DANGER_HOVER_BG: Color32 = Color32::from_rgb(42, 26, 26);
+use crate::theme::colors::STATUS_ERROR;
 
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let devices_info: Vec<(String, String)> = state
@@ -101,19 +97,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
 fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
     ui.scope(|ui| {
+        let text_color = ui.visuals().text_color();
+        let weak_color = ui.visuals().weak_text_color();
+        let hover_bg = ui.visuals().widgets.hovered.bg_fill;
+        let active_bg = ui.visuals().widgets.active.bg_fill;
+        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+
         let w = &mut ui.style_mut().visuals.widgets;
         w.inactive.weak_bg_fill = Color32::TRANSPARENT;
         w.inactive.bg_fill = Color32::TRANSPARENT;
-        w.inactive.fg_stroke = Stroke::new(1.0, TEXT_SECONDARY);
-        w.inactive.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-        w.hovered.weak_bg_fill = BG_HOVER;
-        w.hovered.bg_fill = BG_HOVER;
-        w.hovered.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-        w.hovered.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-        w.active.weak_bg_fill = BG_ELEVATED;
-        w.active.bg_fill = BG_ELEVATED;
-        w.active.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-        w.active.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
+        w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
+        w.inactive.bg_stroke = Stroke::new(1.0, border);
+        w.hovered.weak_bg_fill = hover_bg;
+        w.hovered.bg_fill = hover_bg;
+        w.hovered.fg_stroke = Stroke::new(1.0, text_color);
+        w.hovered.bg_stroke = Stroke::new(1.0, border);
+        w.active.weak_bg_fill = active_bg;
+        w.active.bg_fill = active_bg;
+        w.active.fg_stroke = Stroke::new(1.0, text_color);
+        w.active.bg_stroke = Stroke::new(1.0, border);
         ui.button(text)
     })
     .inner
@@ -121,17 +123,25 @@ fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
 
 fn danger_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
     ui.scope(|ui| {
+        let dark_mode = ui.visuals().dark_mode;
+        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+        let hover_bg = if dark_mode {
+            Color32::from_rgb(42, 26, 26)
+        } else {
+            Color32::from_rgba_unmultiplied(220, 38, 38, 30)
+        };
+
         let w = &mut ui.style_mut().visuals.widgets;
         w.inactive.weak_bg_fill = Color32::TRANSPARENT;
         w.inactive.bg_fill = Color32::TRANSPARENT;
         w.inactive.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
-        w.inactive.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-        w.hovered.weak_bg_fill = DANGER_HOVER_BG;
-        w.hovered.bg_fill = DANGER_HOVER_BG;
+        w.inactive.bg_stroke = Stroke::new(1.0, border);
+        w.hovered.weak_bg_fill = hover_bg;
+        w.hovered.bg_fill = hover_bg;
         w.hovered.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
         w.hovered.bg_stroke = Stroke::new(1.0, STATUS_ERROR);
-        w.active.weak_bg_fill = DANGER_HOVER_BG;
-        w.active.bg_fill = DANGER_HOVER_BG;
+        w.active.weak_bg_fill = hover_bg;
+        w.active.bg_fill = hover_bg;
         w.active.fg_stroke = Stroke::new(1.0, STATUS_ERROR);
         w.active.bg_stroke = Stroke::new(1.0, STATUS_ERROR);
         ui.button(text)

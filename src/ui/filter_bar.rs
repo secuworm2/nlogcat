@@ -3,9 +3,7 @@ use egui::{Color32, ComboBox, RichText, Stroke, TextEdit};
 use crate::app::AppState;
 use crate::model::filter_state::SearchField;
 use crate::model::LogLevel;
-use crate::theme::colors::{
-    level_label_color, BG_HOVER, BORDER_DEFAULT, PRIMARY, TEXT_PRIMARY, TEXT_SECONDARY,
-};
+use crate::theme::colors::{level_label_color, PRIMARY};
 
 const LEVELS: &[(LogLevel, &str)] = &[
     (LogLevel::Verbose, "V"),
@@ -28,9 +26,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     ui.horizontal_centered(|ui| {
         ui.add_space(8.0);
 
+        let dark_mode = ui.visuals().dark_mode;
         for &(level, label) in LEVELS {
             let active = state.filter.levels.contains(&level);
-            if level_toggle(ui, label, level, active).clicked() {
+            if level_toggle(ui, label, level, active, dark_mode).clicked() {
                 if active {
                     state.filter.levels.remove(&level);
                 } else {
@@ -84,9 +83,16 @@ fn level_toggle(
     label: &str,
     level: LogLevel,
     active: bool,
+    dark_mode: bool,
 ) -> egui::Response {
-    let color = level_label_color(level);
+    let color = level_label_color(level, dark_mode);
     ui.scope(|ui| {
+        // Extract visuals before taking mutable borrow of style
+        let weak_color = ui.visuals().weak_text_color();
+        let hover_bg = ui.visuals().widgets.hovered.bg_fill;
+        let text_color = ui.visuals().text_color();
+        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+
         let w = &mut ui.style_mut().visuals.widgets;
         if active {
             let [r, g, b, _] = color.to_array();
@@ -106,16 +112,16 @@ fn level_toggle(
         } else {
             w.inactive.weak_bg_fill = Color32::TRANSPARENT;
             w.inactive.bg_fill = Color32::TRANSPARENT;
-            w.inactive.fg_stroke = Stroke::new(1.0, TEXT_SECONDARY);
-            w.inactive.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-            w.hovered.weak_bg_fill = BG_HOVER;
-            w.hovered.bg_fill = BG_HOVER;
-            w.hovered.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-            w.hovered.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-            w.active.weak_bg_fill = BG_HOVER;
-            w.active.bg_fill = BG_HOVER;
-            w.active.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-            w.active.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
+            w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
+            w.inactive.bg_stroke = Stroke::new(1.0, border);
+            w.hovered.weak_bg_fill = hover_bg;
+            w.hovered.bg_fill = hover_bg;
+            w.hovered.fg_stroke = Stroke::new(1.0, text_color);
+            w.hovered.bg_stroke = Stroke::new(1.0, border);
+            w.active.weak_bg_fill = hover_bg;
+            w.active.bg_fill = hover_bg;
+            w.active.fg_stroke = Stroke::new(1.0, text_color);
+            w.active.bg_stroke = Stroke::new(1.0, border);
         }
         ui.button(label)
     })
@@ -124,37 +130,43 @@ fn level_toggle(
 
 fn case_button(ui: &mut egui::Ui, active: bool) -> egui::Response {
     ui.scope(|ui| {
+        // Extract visuals before taking mutable borrow of style
+        let weak_color = ui.visuals().weak_text_color();
+        let hover_bg = ui.visuals().widgets.hovered.bg_fill;
+        let text_color = ui.visuals().text_color();
+        let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+
         let w = &mut ui.style_mut().visuals.widgets;
         if active {
             w.inactive.weak_bg_fill = Color32::TRANSPARENT;
             w.inactive.bg_fill = Color32::TRANSPARENT;
             w.inactive.fg_stroke = Stroke::new(1.0, PRIMARY);
             w.inactive.bg_stroke = Stroke::new(1.0, PRIMARY);
-            w.hovered.weak_bg_fill = BG_HOVER;
-            w.hovered.bg_fill = BG_HOVER;
+            w.hovered.weak_bg_fill = hover_bg;
+            w.hovered.bg_fill = hover_bg;
             w.hovered.fg_stroke = Stroke::new(1.0, PRIMARY);
             w.hovered.bg_stroke = Stroke::new(1.0, PRIMARY);
-            w.active.weak_bg_fill = BG_HOVER;
-            w.active.bg_fill = BG_HOVER;
+            w.active.weak_bg_fill = hover_bg;
+            w.active.bg_fill = hover_bg;
             w.active.fg_stroke = Stroke::new(1.0, PRIMARY);
             w.active.bg_stroke = Stroke::new(1.0, PRIMARY);
         } else {
             w.inactive.weak_bg_fill = Color32::TRANSPARENT;
             w.inactive.bg_fill = Color32::TRANSPARENT;
-            w.inactive.fg_stroke = Stroke::new(1.0, TEXT_SECONDARY);
-            w.inactive.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-            w.hovered.weak_bg_fill = BG_HOVER;
-            w.hovered.bg_fill = BG_HOVER;
-            w.hovered.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-            w.hovered.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
-            w.active.weak_bg_fill = BG_HOVER;
-            w.active.bg_fill = BG_HOVER;
-            w.active.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
-            w.active.bg_stroke = Stroke::new(1.0, BORDER_DEFAULT);
+            w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
+            w.inactive.bg_stroke = Stroke::new(1.0, border);
+            w.hovered.weak_bg_fill = hover_bg;
+            w.hovered.bg_fill = hover_bg;
+            w.hovered.fg_stroke = Stroke::new(1.0, text_color);
+            w.hovered.bg_stroke = Stroke::new(1.0, border);
+            w.active.weak_bg_fill = hover_bg;
+            w.active.bg_fill = hover_bg;
+            w.active.fg_stroke = Stroke::new(1.0, text_color);
+            w.active.bg_stroke = Stroke::new(1.0, border);
         }
         ui.add(
             egui::Button::new(
-                RichText::new("Aa").color(if active { PRIMARY } else { TEXT_SECONDARY }),
+                RichText::new("Aa").color(if active { PRIMARY } else { weak_color }),
             )
             .fill(Color32::TRANSPARENT),
         )

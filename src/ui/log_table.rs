@@ -1,9 +1,7 @@
 use crate::app::{AppState, ColumnWidths};
 use crate::engine::search::SearchEngine;
 use crate::model::LogEntry;
-use crate::theme::colors::{
-    level_label_color, level_row_bg, BG_SELECTED, BG_SURFACE, TEXT_PRIMARY, TEXT_SECONDARY,
-};
+use crate::theme::colors::{level_label_color, level_row_bg};
 use egui::{Color32, FontId};
 
 const HEADER_HEIGHT: f32 = 24.0;
@@ -28,15 +26,15 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         if down { navigate_focus(state, 1); }
     }
 
-    let mut single_clicked: Option<(usize, u64)> = None; // (filtered_pos, entry_id)
+    let mut single_clicked: Option<(usize, u64)> = None;
     let mut double_clicked_id: Option<u64> = None;
     let should_scroll_to_bottom = state.scroll_to_bottom;
     let scroll_to_row = state.scroll_to_row;
     let table_visible_height = state.table_visible_height;
-    // show_rows positions rows at (row_height + item_spacing_y) intervals
     let row_height_full = row_height + ui.spacing().item_spacing.y;
 
     let modifiers = ui.ctx().input(|i| i.modifiers);
+    let dark_mode = ui.visuals().dark_mode;
 
     let (scroll_offset_y, content_height, visible_height) = {
         let filtered_indices = &state.filtered_indices;
@@ -86,6 +84,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         row_height,
                         pkg_name,
                         widths,
+                        dark_mode,
                     );
                     if resp.double_clicked() {
                         double_clicked_id = Some(entry_id);
@@ -159,7 +158,6 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 }
 
 fn navigate_focus(state: &mut AppState, delta: i64) {
-    // Disable auto-scroll so scroll_to_bottom doesn't override scroll_to_row
     state.auto_scroll = false;
     state.scroll_to_bottom = false;
 
@@ -201,7 +199,9 @@ fn navigate_focus(state: &mut AppState, delta: i64) {
 fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, HEADER_HEIGHT), egui::Sense::hover());
-    ui.painter().rect_filled(rect, 0.0, BG_SURFACE);
+    let header_bg = ui.visuals().faint_bg_color;
+    let text_color = ui.visuals().weak_text_color();
+    ui.painter().rect_filled(rect, 0.0, header_bg);
 
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
@@ -226,11 +226,10 @@ fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
             egui::Align2::LEFT_CENTER,
             label,
             font.clone(),
-            TEXT_SECONDARY,
+            text_color,
         );
     }
 
-    // Drag handles — thin interactive strips at each column boundary
     let boundaries = [lv_x, tag_x, pid_x, pkg_x, msg_x];
     let handle_ids = ["cr_time", "cr_lv", "cr_tag", "cr_pid", "cr_pkg"];
     let mut drag: Option<(usize, f32)> = None;
@@ -268,6 +267,7 @@ fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_row(
     ui: &mut egui::Ui,
     entry: &LogEntry,
@@ -278,16 +278,25 @@ fn render_row(
     row_height: f32,
     pkg_name: &str,
     widths: &ColumnWidths,
+    dark_mode: bool,
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(w, row_height), egui::Sense::click());
 
-    let base_bg = level_row_bg(entry.level);
+    let selection_bg = ui.visuals().selection.bg_fill;
+    let text_color = ui.visuals().text_color();
+    let weak_text = ui.visuals().weak_text_color();
+
+    let base_bg = level_row_bg(entry.level, dark_mode);
     let bg = if is_selected {
-        BG_SELECTED
+        selection_bg
     } else if response.hovered() {
-        brighten(base_bg)
+        if dark_mode {
+            brighten(base_bg)
+        } else {
+            Color32::from_rgba_unmultiplied(0, 0, 0, 12)
+        }
     } else {
         base_bg
     };
@@ -317,7 +326,7 @@ fn render_row(
             egui::Align2::LEFT_CENTER,
             format!("{} {}", entry.date, entry.time),
             font.clone(),
-            TEXT_SECONDARY,
+            weak_text,
         );
 
     ui.painter()
@@ -327,13 +336,13 @@ fn render_row(
             egui::Align2::LEFT_CENTER,
             entry.level.label(),
             font.clone(),
-            level_label_color(entry.level),
+            level_label_color(entry.level, dark_mode),
         );
 
     paint_cell(
         ui,
         &entry.tag,
-        TEXT_PRIMARY,
+        text_color,
         egui::pos2(tag_x, y),
         font.clone(),
         search_query,
@@ -348,7 +357,7 @@ fn render_row(
             egui::Align2::LEFT_CENTER,
             entry.pid.to_string(),
             font.clone(),
-            TEXT_SECONDARY,
+            weak_text,
         );
 
     ui.painter()
@@ -358,7 +367,7 @@ fn render_row(
             egui::Align2::LEFT_CENTER,
             pkg_name,
             font.clone(),
-            TEXT_SECONDARY,
+            weak_text,
         );
 
     let msg_clip = egui::Rect::from_min_max(
@@ -368,7 +377,7 @@ fn render_row(
     paint_cell(
         ui,
         &entry.message,
-        TEXT_PRIMARY,
+        text_color,
         egui::pos2(msg_x, y),
         font,
         search_query,

@@ -1,23 +1,28 @@
 use egui::{Frame, Margin, RichText, Stroke};
 
 use crate::app::AppState;
-use crate::theme::colors::{
-    level_label_color, BG_SURFACE, BORDER_DEFAULT, TEXT_PRIMARY, TEXT_SECONDARY,
-};
+use crate::theme::colors::level_label_color;
 
 pub fn render(ctx: &egui::Context, state: &AppState) {
+    let panel_fill = ctx.style().visuals.panel_fill;
+    let border_color = ctx.style().visuals.widgets.noninteractive.bg_stroke.color;
+
     egui::TopBottomPanel::bottom("detail_panel")
         .resizable(true)
         .min_height(60.0)
         .default_height(110.0)
         .frame(
             Frame::none()
-                .fill(BG_SURFACE)
+                .fill(panel_fill)
                 .inner_margin(Margin::symmetric(8.0, 6.0))
-                .stroke(Stroke::new(1.0, BORDER_DEFAULT)),
+                .stroke(Stroke::new(1.0, border_color)),
         )
         .show_separator_line(false)
         .show(ctx, |ui| {
+            let dark_mode = ui.visuals().dark_mode;
+            let text_color = ui.visuals().text_color();
+            let weak_text = ui.visuals().weak_text_color();
+
             let entry = state.focused_log_id.and_then(|id| {
                 let Ok(buf) = state.log_buffer.lock() else { return None; };
                 buf.find_by_id(id).cloned()
@@ -28,7 +33,7 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                     ui.centered_and_justified(|ui| {
                         ui.label(
                             RichText::new("로그를 선택하면 메시지가 표시됩니다")
-                                .color(TEXT_SECONDARY),
+                                .color(weak_text),
                         );
                     });
                 }
@@ -36,23 +41,23 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("{} {}", entry.date, entry.time))
-                                .color(TEXT_SECONDARY)
+                                .color(weak_text)
                                 .monospace(),
                         );
                         ui.add_space(8.0);
                         ui.label(
                             RichText::new(entry.level.label())
-                                .color(level_label_color(entry.level))
+                                .color(level_label_color(entry.level, dark_mode))
                                 .monospace(),
                         );
                         ui.add_space(8.0);
                         ui.label(
-                            RichText::new(&entry.tag).color(TEXT_PRIMARY).monospace(),
+                            RichText::new(&entry.tag).color(text_color).monospace(),
                         );
                         ui.add_space(8.0);
                         ui.label(
                             RichText::new(format!("PID:{}", entry.pid))
-                                .color(TEXT_SECONDARY)
+                                .color(weak_text)
                                 .monospace(),
                         );
                     });
@@ -65,7 +70,7 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                         .show(ui, |ui| {
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&entry.message).monospace().color(TEXT_PRIMARY),
+                                    RichText::new(&entry.message).monospace().color(text_color),
                                 )
                                 .selectable(true),
                             );
