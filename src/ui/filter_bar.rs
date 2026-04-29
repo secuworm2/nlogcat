@@ -64,6 +64,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 .hint_text("검색어 입력")
                 .desired_width(220.0),
         );
+        if state.focus_search {
+            search_resp.request_focus();
+            state.focus_search = false;
+        }
         if search_resp.changed() {
             state.search_debounce_until =
                 Some(std::time::Instant::now() + std::time::Duration::from_millis(150));

@@ -8,3 +8,4 @@ pub mod status_bar;
 pub mod detail_panel;
 pub mod detail_modal;
 pub mod settings_panel;
+pub mod help_modal;

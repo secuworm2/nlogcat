@@ -17,13 +17,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
 
-    // Arrow key navigation (only when detail modal is not open)
+    // Arrow key navigation and Ctrl+A (only when detail modal is not open)
     if state.detail_log_id.is_none() {
-        let (up, down) = ui.ctx().input(|i| {
-            (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown))
-        });
+        let (up, down, ctrl_a) = ui.ctx().input(|i| (
+            i.key_pressed(egui::Key::ArrowUp),
+            i.key_pressed(egui::Key::ArrowDown),
+            i.modifiers.ctrl && i.key_pressed(egui::Key::A),
+        ));
         if up { navigate_focus(state, -1); }
         if down { navigate_focus(state, 1); }
+        if ctrl_a {
+            if let Ok(buf) = state.log_buffer.lock() {
+                let entries = buf.entries();
+                for &idx in &state.filtered_indices {
+                    if let Some(e) = entries.get(idx) {
+                        state.selected_log_ids.insert(e.id);
+                    }
+                }
+            }
+        }
     }
 
     let mut single_clicked: Option<(usize, u64)> = None;

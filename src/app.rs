@@ -41,6 +41,7 @@ pub struct AppState {
     pub last_click_idx: Option<usize>,
     pub show_settings: bool,
     pub show_help: bool,
+    pub focus_search: bool,
     pub save_requested: bool,
     pub settings: AppSettings,
     pub device_poll_tx: mpsc::Sender<()>,
@@ -139,6 +140,7 @@ impl NlogcatApp {
             last_click_idx: None,
             show_settings: false,
             show_help: false,
+            focus_search: false,
             save_requested: false,
             settings,
             device_poll_tx,
@@ -179,13 +181,17 @@ impl eframe::App for NlogcatApp {
         self.manage_streaming();
         self.tick_error_dismiss();
 
-        let (copy_requested, size_changed, scroll_delta) = ctx.input(|i| {
+        let (copy_requested, size_changed, scroll_delta, focus_search) = ctx.input(|i| {
             let copy = (i.modifiers.ctrl && i.key_pressed(egui::Key::C))
                 || i.events.iter().any(|e| matches!(e, egui::Event::Copy));
             let size = i.viewport().inner_rect.map(|r| (r.width(), r.height()));
             let scroll = if i.modifiers.ctrl { i.raw_scroll_delta.y } else { 0.0 };
-            (copy, size, scroll)
+            let search = i.modifiers.ctrl && i.key_pressed(egui::Key::F);
+            (copy, size, scroll, search)
         });
+        if focus_search {
+            self.state.focus_search = true;
+        }
         if let Some((w, h)) = size_changed {
             self.state.settings.window_width = w;
             self.state.settings.window_height = h;
