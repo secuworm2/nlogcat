@@ -17,13 +17,6 @@ impl FilterEngine {
             return false;
         }
 
-        if let Some(ref wanted) = filter.selected_package {
-            let entry_pkg = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
-            if entry_pkg != wanted.as_str() {
-                return false;
-            }
-        }
-
         if !filter.search_query.is_empty() {
             let q = filter.search_query.as_str();
             let pkg = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");

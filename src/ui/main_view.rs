@@ -51,7 +51,6 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     crate::ui::detail_modal::render(ctx, state);
     crate::ui::settings_panel::render(ctx, state);
     crate::ui::help_modal::render(ctx, state);
-    crate::ui::package_filter::render(ctx, state);
 }
 
 fn render_error_banner(ui: &mut egui::Ui, message: &str) {

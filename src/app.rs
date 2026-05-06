@@ -59,13 +59,6 @@ pub struct AppState {
     pub table_top_y: f32,
     pub drag_select_anchor: Option<usize>,
     pub filter_buf_len: usize,
-    pub show_package_filter: bool,
-    pub package_filter_anchor: egui::Pos2,
-    pub user_packages: HashSet<String>,
-    pub seen_pids: HashSet<u32>,
-    pub active_packages: Vec<String>,
-    pub app_labels: HashMap<String, String>,
-    pub labels_requested: HashSet<String>,
 }
 
 impl AppState {
@@ -86,10 +79,6 @@ pub struct NlogcatApp {
     last_drain: Instant,
     active_serial: Option<String>,
     last_filter_state: crate::model::FilterState,
-    user_pkg_tx: mpsc::Sender<HashSet<String>>,
-    user_pkg_rx: mpsc::Receiver<HashSet<String>>,
-    label_req_tx: Option<mpsc::Sender<String>>,
-    label_res_rx: mpsc::Receiver<(String, String)>,
 }
 
 impl NlogcatApp {
@@ -175,17 +164,7 @@ impl NlogcatApp {
             table_top_y: 0.0,
             drag_select_anchor: None,
             filter_buf_len: 0,
-            show_package_filter: false,
-            package_filter_anchor: egui::Pos2::ZERO,
-            user_packages: HashSet::new(),
-            seen_pids: HashSet::new(),
-            active_packages: Vec::new(),
-            app_labels: HashMap::new(),
-            labels_requested: HashSet::new(),
         };
-
-        let (user_pkg_tx, user_pkg_rx) = mpsc::channel::<HashSet<String>>(4);
-        let (_, label_res_rx) = mpsc::channel::<(String, String)>(1);
 
         Self {
             state,
@@ -198,10 +177,6 @@ impl NlogcatApp {
             last_drain: Instant::now(),
             active_serial: None,
             last_filter_state: crate::model::FilterState::default(),
-            user_pkg_tx,
-            user_pkg_rx,
-            label_req_tx: None,
-            label_res_rx,
         }
     }
 }
@@ -210,9 +185,7 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let had_new_data = self.drain_log_channel();
         self.drain_device_channel();
-        self.drain_user_packages();
         self.drain_pid_map_channel();
-        self.drain_label_results();
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
         self.handle_save_request();
@@ -241,7 +214,6 @@ impl eframe::App for NlogcatApp {
                 (self.state.settings.font_size + delta).clamp(8.0, 24.0);
             let _ = settings::save(&self.state.settings);
         }
-
 
         if self.state.selected_device.is_some() {
             crate::ui::main_view::render(ctx, &mut self.state);
@@ -292,20 +264,6 @@ impl NlogcatApp {
         }
         if new_entries.is_empty() {
             return false;
-        }
-
-        for entry in &new_entries {
-            if self.state.seen_pids.insert(entry.pid) {
-                let pkg = self.state.pid_map.get(&entry.pid)
-                    .filter(|p| !p.is_empty())
-                    .cloned();
-                if let Some(pkg) = pkg {
-                    if !self.state.active_packages.contains(&pkg) {
-                        self.state.active_packages.push(pkg.clone());
-                    }
-                    self.enqueue_label_fetch(&pkg);
-                }
-            }
         }
 
         let Ok(mut buffer) = self.state.log_buffer.lock() else {
@@ -391,24 +349,8 @@ impl NlogcatApp {
     }
 
     fn drain_pid_map_channel(&mut self) {
-        let mut updated = false;
         while let Ok(map) = self.pid_map_rx.try_recv() {
             self.state.pid_map = map;
-            updated = true;
-        }
-        if updated {
-            let pids: Vec<u32> = self.state.seen_pids.iter().cloned().collect();
-            for pid in pids {
-                let pkg = self.state.pid_map.get(&pid)
-                    .filter(|p| !p.is_empty())
-                    .cloned();
-                if let Some(pkg) = pkg {
-                    if !self.state.active_packages.contains(&pkg) {
-                        self.state.active_packages.push(pkg.clone());
-                    }
-                    self.enqueue_label_fetch(&pkg);
-                }
-            }
         }
     }
 
@@ -466,7 +408,6 @@ impl NlogcatApp {
                     mgr.stop_stream();
                 }
                 self.stop_pid_refresh();
-                self.stop_label_worker();
             }
             if self.state.is_streaming {
                 self.state.is_streaming = false;
@@ -513,13 +454,6 @@ impl NlogcatApp {
             Action::None => {}
             Action::StartStream { adb_path } => {
                 self.active_serial = Some(serial.clone());
-                self.state.user_packages.clear();
-                self.state.seen_pids.clear();
-                self.state.active_packages.clear();
-                self.state.app_labels.clear();
-                self.state.labels_requested.clear();
-                self.spawn_user_packages_load(adb_path.clone(), serial.clone());
-                self.spawn_label_worker(adb_path.clone(), serial.clone());
                 self.start_pid_refresh(adb_path, serial);
             }
             Action::StartFailed(msg) => {
@@ -530,7 +464,6 @@ impl NlogcatApp {
             Action::StopStream => {
                 self.active_serial = None;
                 self.stop_pid_refresh();
-                self.stop_label_worker();
             }
         }
     }
@@ -557,56 +490,6 @@ impl NlogcatApp {
     fn stop_pid_refresh(&mut self) {
         if let Some(task) = self.pid_refresh_task.take() {
             task.abort();
-        }
-    }
-
-    fn spawn_label_worker(&mut self, adb_path: std::path::PathBuf, serial: String) {
-        let (req_tx, mut req_rx) = mpsc::channel::<String>(32);
-        let (res_tx, res_rx) = mpsc::channel::<(String, String)>(32);
-        self.label_req_tx = Some(req_tx);
-        self.label_res_rx = res_rx;
-
-        tokio::spawn(async move {
-            while let Some(pkg) = req_rx.recv().await {
-                let path = adb_path.clone();
-                let ser = serial.clone();
-                let pkg_clone = pkg.clone();
-                let label = tokio::task::spawn_blocking(move || {
-                    crate::adb::package::fetch_app_label(&path, &ser, &pkg_clone)
-                })
-                .await
-                .unwrap_or(None);
-                if let Some(label) = label {
-                    if res_tx.send((pkg, label)).await.is_err() {
-                        break;
-                    }
-                }
-                tokio::time::sleep(Duration::from_millis(300)).await;
-            }
-        });
-    }
-
-    fn stop_label_worker(&mut self) {
-        self.label_req_tx = None;
-        self.state.labels_requested.clear();
-        let (_, rx) = mpsc::channel::<(String, String)>(1);
-        self.label_res_rx = rx;
-    }
-
-    fn drain_label_results(&mut self) {
-        while let Ok((pkg, label)) = self.label_res_rx.try_recv() {
-            self.state.app_labels.insert(pkg, label);
-        }
-    }
-
-    fn enqueue_label_fetch(&mut self, pkg: &str) {
-        if self.state.labels_requested.contains(pkg) {
-            return;
-        }
-        if let Some(ref tx) = self.label_req_tx {
-            if tx.try_send(pkg.to_string()).is_ok() {
-                self.state.labels_requested.insert(pkg.to_string());
-            }
         }
     }
 
@@ -638,23 +521,6 @@ impl NlogcatApp {
             }
         }
     }
-
-
-
-    fn drain_user_packages(&mut self) {
-        while let Ok(pkgs) = self.user_pkg_rx.try_recv() {
-            self.state.user_packages = pkgs;
-        }
-    }
-
-    fn spawn_user_packages_load(&mut self, adb_path: std::path::PathBuf, serial: String) {
-        let tx = self.user_pkg_tx.clone();
-        tokio::task::spawn_blocking(move || {
-            let pkgs = crate::adb::package::fetch_user_packages(&adb_path, &serial);
-            let _ = tx.blocking_send(pkgs);
-        });
-    }
-
 
     fn build_copy_content(&self) -> String {
         let Ok(buffer) = self.state.log_buffer.lock() else {

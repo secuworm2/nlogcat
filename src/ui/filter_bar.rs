@@ -79,26 +79,6 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             state.filter.case_sensitive = !state.filter.case_sensitive;
             state.filter_dirty = true;
         }
-
-        ui.add_space(4.0);
-        ui.separator();
-        ui.add_space(4.0);
-
-        let pkg_active = state.filter.selected_package.is_some();
-        let pkg_label = if let Some(ref pkg) = state.filter.selected_package {
-            let short = state.app_labels.get(pkg.as_str())
-                .map(String::as_str)
-                .unwrap_or_else(|| pkg.split('.').last().unwrap_or(pkg.as_str()));
-            format!("앱 목록: {short} ▼")
-        } else {
-            "앱 목록 ▼".to_string()
-        };
-
-        let btn_resp = app_filter_button(ui, &pkg_label, pkg_active);
-        if btn_resp.clicked() {
-            state.show_package_filter = !state.show_package_filter;
-            state.package_filter_anchor = btn_resp.rect.left_bottom();
-        }
     });
 }
 
@@ -191,50 +171,6 @@ fn case_button(ui: &mut egui::Ui, active: bool) -> egui::Response {
         ui.add(
             egui::Button::new(
                 RichText::new("Aa").color(if active { PRIMARY } else { weak_color }),
-            )
-            .fill(Color32::TRANSPARENT),
-        )
-    })
-    .inner
-}
-
-fn app_filter_button(ui: &mut egui::Ui, label: &str, active: bool) -> egui::Response {
-    ui.scope(|ui| {
-        let weak_color = ui.visuals().weak_text_color();
-        let hover_bg = ui.visuals().widgets.hovered.bg_fill;
-        let text_color = ui.visuals().text_color();
-
-        let w = &mut ui.style_mut().visuals.widgets;
-        if active {
-            w.inactive.weak_bg_fill = Color32::TRANSPARENT;
-            w.inactive.bg_fill = Color32::TRANSPARENT;
-            w.inactive.fg_stroke = Stroke::new(1.0, PRIMARY);
-            w.inactive.bg_stroke = Stroke::new(1.0, PRIMARY);
-            w.hovered.weak_bg_fill = hover_bg;
-            w.hovered.bg_fill = hover_bg;
-            w.hovered.fg_stroke = Stroke::new(1.0, PRIMARY);
-            w.hovered.bg_stroke = Stroke::new(1.0, PRIMARY);
-            w.active.weak_bg_fill = hover_bg;
-            w.active.bg_fill = hover_bg;
-            w.active.fg_stroke = Stroke::new(1.0, PRIMARY);
-            w.active.bg_stroke = Stroke::new(1.0, PRIMARY);
-        } else {
-            w.inactive.weak_bg_fill = Color32::TRANSPARENT;
-            w.inactive.bg_fill = Color32::TRANSPARENT;
-            w.inactive.fg_stroke = Stroke::new(1.0, weak_color);
-            w.inactive.bg_stroke = Stroke::NONE;
-            w.hovered.weak_bg_fill = hover_bg;
-            w.hovered.bg_fill = hover_bg;
-            w.hovered.fg_stroke = Stroke::new(1.0, text_color);
-            w.hovered.bg_stroke = Stroke::NONE;
-            w.active.weak_bg_fill = hover_bg;
-            w.active.bg_fill = hover_bg;
-            w.active.fg_stroke = Stroke::new(1.0, text_color);
-            w.active.bg_stroke = Stroke::NONE;
-        }
-        ui.add(
-            egui::Button::new(
-                RichText::new(label).color(if active { PRIMARY } else { weak_color }),
             )
             .fill(Color32::TRANSPARENT),
         )

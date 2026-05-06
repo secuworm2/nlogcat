@@ -30,8 +30,6 @@ pub struct FilterState {
     pub search_query: String,
     pub search_field: SearchField,
     pub case_sensitive: bool,
-    pub selected_package: Option<String>,
-    pub show_system_apps: bool,
 }
 
 impl Default for FilterState {
@@ -48,8 +46,6 @@ impl Default for FilterState {
             search_query: String::new(),
             search_field: SearchField::All,
             case_sensitive: false,
-            selected_package: None,
-            show_system_apps: false,
         }
     }
 }
