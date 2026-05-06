@@ -97,12 +97,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
             if flat_text_button(ui, "?").clicked() {
                 state.show_help = !state.show_help;
+                if state.show_help {
+                    state.help_just_opened = true;
+                }
             }
 
             ui.add_space(2.0);
 
             if icon_button(ui, crate::ui::icons::gear, "설정").clicked() {
                 state.show_settings = !state.show_settings;
+                if state.show_settings {
+                    state.settings_just_opened = true;
+                }
             }
         });
     });

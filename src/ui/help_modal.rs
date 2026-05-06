@@ -16,10 +16,16 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     let border_color = ctx.style().visuals.window_stroke.color;
     let mut close = false;
 
-    egui::Window::new("__help_modal")
+    let use_center = state.help_just_opened;
+    state.help_just_opened = false;
+
+    let screen_rect = ctx.screen_rect();
+    let default_pos = screen_rect.center() - egui::vec2(186.0, 190.0);
+
+    let mut window = egui::Window::new("__help_modal")
         .title_bar(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .default_pos(default_pos)
         .min_width(340.0)
         .frame(
             Frame::none()
@@ -27,10 +33,15 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
                 .rounding(Rounding::same(6.0))
                 .inner_margin(Margin::same(16.0))
                 .stroke(Stroke::new(1.0, border_color)),
-        )
-        .show(ctx, |ui| {
-            render_content(ui, &mut close);
-        });
+        );
+
+    if use_center {
+        window = window.current_pos(default_pos);
+    }
+
+    window.show(ctx, |ui| {
+        render_content(ui, &mut close);
+    });
 
     if close {
         state.show_help = false;

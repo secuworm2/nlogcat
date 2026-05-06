@@ -20,10 +20,16 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     let mut close = false;
     let mut changed = false;
 
-    egui::Window::new("__settings_panel")
+    let use_center = state.settings_just_opened;
+    state.settings_just_opened = false;
+
+    let screen_rect = ctx.screen_rect();
+    let default_pos = screen_rect.center() - egui::vec2(216.0, 190.0);
+
+    let mut window = egui::Window::new("__settings_panel")
         .title_bar(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .default_pos(default_pos)
         .min_width(400.0)
         .frame(
             Frame::none()
@@ -31,8 +37,13 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
                 .rounding(Rounding::same(6.0))
                 .inner_margin(Margin::same(16.0))
                 .stroke(Stroke::new(1.0, border_color)),
-        )
-        .show(ctx, |ui| {
+        );
+
+    if use_center {
+        window = window.current_pos(default_pos);
+    }
+
+    window.show(ctx, |ui| {
             render_header(ui, &mut close);
             ui.separator();
             ui.add_space(8.0);
