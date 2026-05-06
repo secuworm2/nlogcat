@@ -60,6 +60,11 @@ pub struct AppState {
     pub drag_select_anchor: Option<usize>,
     pub filter_buf_len: usize,
     pub show_package_filter: bool,
+    pub package_filter_anchor: egui::Pos2,
+    pub app_labels: HashMap<String, String>,
+    pub user_packages: HashSet<String>,
+    pub seen_pids: HashSet<u32>,
+    pub active_packages: Vec<String>,
 }
 
 impl AppState {
@@ -80,10 +85,11 @@ pub struct NlogcatApp {
     last_drain: Instant,
     active_serial: Option<String>,
     last_filter_state: crate::model::FilterState,
-    icon_tx: mpsc::Sender<(String, Vec<u8>)>,
-    icon_rx: mpsc::Receiver<(String, Vec<u8>)>,
-    pub icon_textures: HashMap<String, egui::TextureHandle>,
-    icon_loading: std::collections::HashSet<String>,
+    label_tx: mpsc::Sender<(String, String)>,
+    label_rx: mpsc::Receiver<(String, String)>,
+    label_loading: HashSet<String>,
+    user_pkg_tx: mpsc::Sender<HashSet<String>>,
+    user_pkg_rx: mpsc::Receiver<HashSet<String>>,
 }
 
 impl NlogcatApp {
@@ -170,9 +176,15 @@ impl NlogcatApp {
             drag_select_anchor: None,
             filter_buf_len: 0,
             show_package_filter: false,
+            package_filter_anchor: egui::Pos2::ZERO,
+            app_labels: HashMap::new(),
+            user_packages: HashSet::new(),
+            seen_pids: HashSet::new(),
+            active_packages: Vec::new(),
         };
 
-        let (icon_tx, icon_rx) = mpsc::channel::<(String, Vec<u8>)>(64);
+        let (label_tx, label_rx) = mpsc::channel::<(String, String)>(128);
+        let (user_pkg_tx, user_pkg_rx) = mpsc::channel::<HashSet<String>>(4);
 
         Self {
             state,
@@ -185,10 +197,11 @@ impl NlogcatApp {
             last_drain: Instant::now(),
             active_serial: None,
             last_filter_state: crate::model::FilterState::default(),
-            icon_tx,
-            icon_rx,
-            icon_textures: HashMap::new(),
-            icon_loading: std::collections::HashSet::new(),
+            label_tx,
+            label_rx,
+            label_loading: HashSet::new(),
+            user_pkg_tx,
+            user_pkg_rx,
         }
     }
 }
@@ -197,7 +210,8 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let had_new_data = self.drain_log_channel();
         self.drain_device_channel();
-        self.drain_package_icons(ctx);
+        self.drain_app_labels();
+        self.drain_user_packages();
         self.drain_pid_map_channel();
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
@@ -230,20 +244,15 @@ impl eframe::App for NlogcatApp {
 
         if self.state.show_package_filter {
             if let Some(serial) = self.state.selected_device.clone() {
-                let packages: Vec<String> = self.state.pid_map.values()
-                    .filter(|p| !p.is_empty())
-                    .cloned()
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .collect();
+                let packages = self.state.active_packages.clone();
                 for pkg in packages {
-                    self.spawn_icon_load(pkg, serial.clone());
+                    self.spawn_label_load(pkg, serial.clone());
                 }
             }
         }
 
         if self.state.selected_device.is_some() {
-            crate::ui::main_view::render(ctx, &mut self.state, &self.icon_textures);
+            crate::ui::main_view::render(ctx, &mut self.state);
         } else {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
@@ -291,6 +300,19 @@ impl NlogcatApp {
         }
         if new_entries.is_empty() {
             return false;
+        }
+
+        for entry in &new_entries {
+            if self.state.seen_pids.insert(entry.pid) {
+                let pkg = self.state.pid_map.get(&entry.pid)
+                    .filter(|p| !p.is_empty())
+                    .cloned();
+                if let Some(pkg) = pkg {
+                    if !self.state.active_packages.contains(&pkg) {
+                        self.state.active_packages.push(pkg);
+                    }
+                }
+            }
         }
 
         let Ok(mut buffer) = self.state.log_buffer.lock() else {
@@ -376,8 +398,23 @@ impl NlogcatApp {
     }
 
     fn drain_pid_map_channel(&mut self) {
+        let mut updated = false;
         while let Ok(map) = self.pid_map_rx.try_recv() {
             self.state.pid_map = map;
+            updated = true;
+        }
+        if updated {
+            let pids: Vec<u32> = self.state.seen_pids.iter().cloned().collect();
+            for pid in pids {
+                let pkg = self.state.pid_map.get(&pid)
+                    .filter(|p| !p.is_empty())
+                    .cloned();
+                if let Some(pkg) = pkg {
+                    if !self.state.active_packages.contains(&pkg) {
+                        self.state.active_packages.push(pkg);
+                    }
+                }
+            }
         }
     }
 
@@ -481,6 +518,10 @@ impl NlogcatApp {
             Action::None => {}
             Action::StartStream { adb_path } => {
                 self.active_serial = Some(serial.clone());
+                self.state.user_packages.clear();
+                self.state.seen_pids.clear();
+                self.state.active_packages.clear();
+                self.spawn_user_packages_load(adb_path.clone(), serial.clone());
                 self.start_pid_refresh(adb_path, serial);
             }
             Action::StartFailed(msg) => {
@@ -549,40 +590,43 @@ impl NlogcatApp {
         }
     }
 
-    fn drain_package_icons(&mut self, ctx: &egui::Context) {
-        while let Ok((package, bytes)) = self.icon_rx.try_recv() {
-            self.icon_loading.remove(&package);
-            if let Ok(img) = image::load_from_memory(&bytes) {
-                let rgba = img.to_rgba8();
-                let (w, h) = rgba.dimensions();
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                    [w as usize, h as usize],
-                    rgba.as_flat_samples().as_slice(),
-                );
-                let texture = ctx.load_texture(
-                    format!("pkg_icon_{package}"),
-                    color_image,
-                    egui::TextureOptions::LINEAR,
-                );
-                self.icon_textures.insert(package, texture);
-            }
+
+    fn drain_app_labels(&mut self) {
+        while let Ok((package, label)) = self.label_rx.try_recv() {
+            self.label_loading.remove(&package);
+            self.state.app_labels.insert(package, label);
         }
     }
 
-    fn spawn_icon_load(&mut self, package: String, serial: String) {
-        if self.icon_textures.contains_key(&package) || self.icon_loading.contains(&package) {
+    fn spawn_label_load(&mut self, package: String, serial: String) {
+        if self.state.app_labels.contains_key(&package) || self.label_loading.contains(&package) {
             return;
         }
         let Some(ref mgr) = self.adb_manager else { return; };
         let adb_path = mgr.adb_path.clone();
-        let tx = self.icon_tx.clone();
-        self.icon_loading.insert(package.clone());
+        let tx = self.label_tx.clone();
+        self.label_loading.insert(package.clone());
         tokio::task::spawn_blocking(move || {
-            if let Some(bytes) = crate::adb::package::load_icon_bytes(&adb_path, &serial, &package) {
-                let _ = tx.blocking_send((package, bytes));
+            if let Some(label) = crate::adb::package::fetch_app_label(&adb_path, &serial, &package) {
+                let _ = tx.blocking_send((package, label));
             }
         });
     }
+
+    fn drain_user_packages(&mut self) {
+        while let Ok(pkgs) = self.user_pkg_rx.try_recv() {
+            self.state.user_packages = pkgs;
+        }
+    }
+
+    fn spawn_user_packages_load(&mut self, adb_path: std::path::PathBuf, serial: String) {
+        let tx = self.user_pkg_tx.clone();
+        tokio::task::spawn_blocking(move || {
+            let pkgs = crate::adb::package::fetch_user_packages(&adb_path, &serial);
+            let _ = tx.blocking_send(pkgs);
+        });
+    }
+
 
     fn build_copy_content(&self) -> String {
         let Ok(buffer) = self.state.log_buffer.lock() else {

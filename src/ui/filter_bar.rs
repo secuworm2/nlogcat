@@ -86,14 +86,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
         let pkg_active = state.filter.selected_package.is_some();
         let pkg_label = if let Some(ref pkg) = state.filter.selected_package {
-            let short = pkg.split('.').last().unwrap_or(pkg.as_str());
-            format!("앱: {short} ▼")
+            let short = state.app_labels.get(pkg.as_str())
+                .map(String::as_str)
+                .unwrap_or_else(|| pkg.split('.').last().unwrap_or(pkg.as_str()));
+            format!("앱 목록: {short} ▼")
         } else {
-            "앱 ▼".to_string()
+            "앱 목록 ▼".to_string()
         };
 
-        if app_filter_button(ui, &pkg_label, pkg_active).clicked() {
+        let btn_resp = app_filter_button(ui, &pkg_label, pkg_active);
+        if btn_resp.clicked() {
             state.show_package_filter = !state.show_package_filter;
+            state.package_filter_anchor = btn_resp.rect.left_bottom();
         }
     });
 }
