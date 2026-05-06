@@ -86,7 +86,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
         let pkg_active = state.filter.selected_package.is_some();
         let pkg_label = if let Some(ref pkg) = state.filter.selected_package {
-            let short = pkg.split('.').last().unwrap_or(pkg.as_str());
+            let short = state.app_labels.get(pkg.as_str())
+                .map(String::as_str)
+                .unwrap_or_else(|| pkg.split('.').last().unwrap_or(pkg.as_str()));
             format!("앱 목록: {short} ▼")
         } else {
             "앱 목록 ▼".to_string()

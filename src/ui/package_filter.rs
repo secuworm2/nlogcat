@@ -86,7 +86,8 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
                             for pkg in &packages {
                                 let is_sel = state.filter.selected_package.as_deref()
                                     == Some(pkg.as_str());
-                                if package_row(ui, pkg, None, is_sel, text_color).clicked() {
+                                let label = state.app_labels.get(pkg.as_str()).map(String::as_str);
+                                if package_row(ui, pkg, label, is_sel, text_color).clicked() {
                                     state.filter.selected_package = Some(pkg.clone());
                                     state.filter_dirty = true;
                                     close = true;
