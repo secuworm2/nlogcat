@@ -87,6 +87,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
     if btn_resp.clicked() {
         state.auto_scroll = !state.auto_scroll;
+        if state.auto_scroll {
+            state.scroll_to_bottom = true;
+        }
     }
 }
 
