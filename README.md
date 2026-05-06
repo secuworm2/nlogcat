@@ -1,7 +1,6 @@
 # nlogcat
 
-Android 기기의 로그를 Windows에서 편리하게 확인할 수 있는 무료 GUI 뷰어입니다.  
-별도 설치 없이 `.exe` 파일 하나로 바로 실행됩니다.
+Android 기기의 로그를 Windows에서 GUI로 확인할 수 있는 GUI 뷰어입니다.  
 
 ---
 
