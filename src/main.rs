@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
@@ -31,10 +32,17 @@ fn main() {
 
     let settings = crate::config::settings::load();
 
+    let icon = egui::IconData {
+        rgba: include_bytes!("../assets/icon32_rgba.bin").to_vec(),
+        width: 32,
+        height: 32,
+    };
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([settings.window_width, settings.window_height])
-            .with_title("nlogcat"),
+            .with_title("nlogcat")
+            .with_icon(std::sync::Arc::new(icon)),
         ..Default::default()
     };
 
