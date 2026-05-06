@@ -61,7 +61,6 @@ pub struct AppState {
     pub filter_buf_len: usize,
     pub show_package_filter: bool,
     pub package_filter_anchor: egui::Pos2,
-    pub app_labels: HashMap<String, String>,
     pub user_packages: HashSet<String>,
     pub seen_pids: HashSet<u32>,
     pub active_packages: Vec<String>,
@@ -85,9 +84,6 @@ pub struct NlogcatApp {
     last_drain: Instant,
     active_serial: Option<String>,
     last_filter_state: crate::model::FilterState,
-    label_tx: mpsc::Sender<(String, String)>,
-    label_rx: mpsc::Receiver<(String, String)>,
-    label_loading: HashSet<String>,
     user_pkg_tx: mpsc::Sender<HashSet<String>>,
     user_pkg_rx: mpsc::Receiver<HashSet<String>>,
 }
@@ -177,13 +173,11 @@ impl NlogcatApp {
             filter_buf_len: 0,
             show_package_filter: false,
             package_filter_anchor: egui::Pos2::ZERO,
-            app_labels: HashMap::new(),
             user_packages: HashSet::new(),
             seen_pids: HashSet::new(),
             active_packages: Vec::new(),
         };
 
-        let (label_tx, label_rx) = mpsc::channel::<(String, String)>(128);
         let (user_pkg_tx, user_pkg_rx) = mpsc::channel::<HashSet<String>>(4);
 
         Self {
@@ -197,9 +191,6 @@ impl NlogcatApp {
             last_drain: Instant::now(),
             active_serial: None,
             last_filter_state: crate::model::FilterState::default(),
-            label_tx,
-            label_rx,
-            label_loading: HashSet::new(),
             user_pkg_tx,
             user_pkg_rx,
         }
@@ -210,7 +201,6 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let had_new_data = self.drain_log_channel();
         self.drain_device_channel();
-        self.drain_app_labels();
         self.drain_user_packages();
         self.drain_pid_map_channel();
         self.check_search_debounce();
@@ -242,14 +232,6 @@ impl eframe::App for NlogcatApp {
             let _ = settings::save(&self.state.settings);
         }
 
-        if self.state.show_package_filter {
-            if let Some(serial) = self.state.selected_device.clone() {
-                let packages = self.state.active_packages.clone();
-                for pkg in packages {
-                    self.spawn_label_load(pkg, serial.clone());
-                }
-            }
-        }
 
         if self.state.selected_device.is_some() {
             crate::ui::main_view::render(ctx, &mut self.state);
@@ -591,27 +573,6 @@ impl NlogcatApp {
     }
 
 
-    fn drain_app_labels(&mut self) {
-        while let Ok((package, label)) = self.label_rx.try_recv() {
-            self.label_loading.remove(&package);
-            self.state.app_labels.insert(package, label);
-        }
-    }
-
-    fn spawn_label_load(&mut self, package: String, serial: String) {
-        if self.state.app_labels.contains_key(&package) || self.label_loading.contains(&package) {
-            return;
-        }
-        let Some(ref mgr) = self.adb_manager else { return; };
-        let adb_path = mgr.adb_path.clone();
-        let tx = self.label_tx.clone();
-        self.label_loading.insert(package.clone());
-        tokio::task::spawn_blocking(move || {
-            if let Some(label) = crate::adb::package::fetch_app_label(&adb_path, &serial, &package) {
-                let _ = tx.blocking_send((package, label));
-            }
-        });
-    }
 
     fn drain_user_packages(&mut self) {
         while let Ok(pkgs) = self.user_pkg_rx.try_recv() {
