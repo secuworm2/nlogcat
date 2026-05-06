@@ -16,6 +16,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
+    let query_lc = if !case_sensitive && !search_query.is_empty() {
+        search_query.to_lowercase()
+    } else {
+        String::new()
+    };
 
     // Arrow key navigation, Ctrl+A, Delete (only when detail modal is not open)
     if state.detail_log_id.is_none() {
@@ -55,6 +60,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 state.filtered_indices = crate::engine::filter::FilterEngine::compute_indices(
                     &buf, &state.filter, &state.pid_map,
                 );
+                state.filter_buf_len = buf.entries().len();
 
                 // Auto-select the item that now occupies the first deleted position
                 if let Some(pos) = min_pos {
@@ -130,6 +136,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         entry,
                         is_selected,
                         &search_query,
+                        &query_lc,
                         case_sensitive,
                         font_size,
                         row_height,
@@ -368,6 +375,7 @@ fn render_row(
     entry: &LogEntry,
     is_selected: bool,
     search_query: &str,
+    query_lc: &str,
     case_sensitive: bool,
     font_size: f32,
     row_height: f32,
@@ -419,7 +427,7 @@ fn render_row(
         .text(
             egui::pos2(x, y),
             egui::Align2::LEFT_CENTER,
-            format!("{} {}", entry.date, entry.time),
+            entry.datetime.as_str(),
             font.clone(),
             weak_text,
         );
@@ -441,6 +449,7 @@ fn render_row(
         egui::pos2(tag_x, y),
         font.clone(),
         search_query,
+        query_lc,
         case_sensitive,
         col_clip(tag_x, widths.tag),
     );
@@ -476,6 +485,7 @@ fn render_row(
         egui::pos2(msg_x, y),
         font,
         search_query,
+        query_lc,
         case_sensitive,
         msg_clip,
     );
@@ -490,11 +500,12 @@ fn paint_cell(
     pos: egui::Pos2,
     font: FontId,
     search_query: &str,
+    query_lc: &str,
     case_sensitive: bool,
     clip_rect: egui::Rect,
 ) {
     if !search_query.is_empty() {
-        let ranges = SearchEngine::highlight_ranges(text, search_query, case_sensitive);
+        let ranges = SearchEngine::highlight_ranges(text, search_query, query_lc, case_sensitive);
         if !ranges.is_empty() {
             let job = SearchEngine::build_layout_job(text, &ranges, base_color, font);
             let galley = ui.fonts(|f| f.layout_job(job));

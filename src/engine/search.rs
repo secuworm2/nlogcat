@@ -11,10 +11,14 @@ pub struct SearchEngine;
 
 impl SearchEngine {
     /// Returns byte-index ranges within `text` where `query` appears.
-    /// For case-insensitive mode the positions are validated against the
-    /// original text's char boundaries so slicing is always safe.
+    /// `query_lc` is the pre-computed lowercase version of `query` (ignored when `case_sensitive`).
     #[must_use]
-    pub fn highlight_ranges(text: &str, query: &str, case_sensitive: bool) -> Vec<Range<usize>> {
+    pub fn highlight_ranges(
+        text: &str,
+        query: &str,
+        query_lc: &str,
+        case_sensitive: bool,
+    ) -> Vec<Range<usize>> {
         if query.is_empty() || text.is_empty() {
             return Vec::new();
         }
@@ -34,12 +38,10 @@ impl SearchEngine {
             }
         } else {
             let text_lc = text.to_lowercase();
-            let query_lc = query.to_lowercase();
             let qlen = query_lc.len();
             let mut start = 0;
             while start + qlen <= text_lc.len() {
-                if text_lc[start..].starts_with(query_lc.as_str()) {
-                    // Only emit range if positions align with original text boundaries
+                if text_lc[start..].starts_with(query_lc) {
                     if text.is_char_boundary(start) && text.is_char_boundary(start + qlen) {
                         ranges.push(start..start + qlen);
                     }

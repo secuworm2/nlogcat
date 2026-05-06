@@ -11,6 +11,7 @@ impl FilterEngine {
         entry: &LogEntry,
         filter: &FilterState,
         pid_map: &HashMap<u32, String>,
+        query_lc: Option<&str>,
     ) -> bool {
         if !filter.levels.contains(&entry.level) {
             return false;
@@ -28,18 +29,18 @@ impl FilterEngine {
                             || entry.pid.to_string().contains(q)
                             || pkg.contains(q)
                     } else {
-                        let q_low = q.to_lowercase();
-                        entry.tag.to_lowercase().contains(&q_low)
-                            || entry.message.to_lowercase().contains(&q_low)
-                            || entry.pid.to_string().contains(&q_low)
-                            || pkg.to_lowercase().contains(&q_low)
+                        let ql = query_lc.unwrap_or(q);
+                        entry.tag.to_lowercase().contains(ql)
+                            || entry.message.to_lowercase().contains(ql)
+                            || entry.pid.to_string().contains(ql)
+                            || pkg.to_lowercase().contains(ql)
                     }
                 }
                 SearchField::Tag => {
                     if filter.case_sensitive {
                         entry.tag.contains(q)
                     } else {
-                        entry.tag.to_lowercase().contains(&q.to_lowercase())
+                        entry.tag.to_lowercase().contains(query_lc.unwrap_or(q))
                     }
                 }
                 SearchField::Pid => entry.pid.to_string().contains(q),
@@ -47,14 +48,14 @@ impl FilterEngine {
                     if filter.case_sensitive {
                         pkg.contains(q)
                     } else {
-                        pkg.to_lowercase().contains(&q.to_lowercase())
+                        pkg.to_lowercase().contains(query_lc.unwrap_or(q))
                     }
                 }
                 SearchField::Message => {
                     if filter.case_sensitive {
                         entry.message.contains(q)
                     } else {
-                        entry.message.to_lowercase().contains(&q.to_lowercase())
+                        entry.message.to_lowercase().contains(query_lc.unwrap_or(q))
                     }
                 }
             };
@@ -73,11 +74,16 @@ impl FilterEngine {
         filter: &FilterState,
         pid_map: &HashMap<u32, String>,
     ) -> Vec<usize> {
+        let q_low = if !filter.case_sensitive && !filter.search_query.is_empty() {
+            Some(filter.search_query.to_lowercase())
+        } else {
+            None
+        };
         buffer
             .entries()
             .iter()
             .enumerate()
-            .filter_map(|(i, e)| Self::matches(e, filter, pid_map).then_some(i))
+            .filter_map(|(i, e)| Self::matches(e, filter, pid_map, q_low.as_deref()).then_some(i))
             .collect()
     }
 }

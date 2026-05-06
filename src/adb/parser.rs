@@ -40,6 +40,7 @@ impl LogParser {
             return None;
         }
         let time = line[6..18].to_string();
+        let datetime = format!("{date} {time}");
 
         let mut pos = 18_usize;
 
@@ -94,6 +95,7 @@ impl LogParser {
             id,
             date,
             time,
+            datetime,
             pid,
             tid,
             level,

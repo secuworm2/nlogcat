@@ -24,7 +24,7 @@ impl SearchField {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FilterState {
     pub levels: HashSet<LogLevel>,
     pub search_query: String,

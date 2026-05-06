@@ -58,6 +58,7 @@ pub struct AppState {
     pub table_visible_height: f32,
     pub table_top_y: f32,
     pub drag_select_anchor: Option<usize>,
+    pub filter_buf_len: usize,
 }
 
 impl AppState {
@@ -77,6 +78,7 @@ pub struct NlogcatApp {
     pid_refresh_task: Option<tokio::task::JoinHandle<()>>,
     last_drain: Instant,
     active_serial: Option<String>,
+    last_filter_state: crate::model::FilterState,
 }
 
 impl NlogcatApp {
@@ -161,6 +163,7 @@ impl NlogcatApp {
             table_visible_height: 400.0,
             table_top_y: 0.0,
             drag_select_anchor: None,
+            filter_buf_len: 0,
         };
 
         Self {
@@ -173,13 +176,14 @@ impl NlogcatApp {
             pid_refresh_task: None,
             last_drain: Instant::now(),
             active_serial: None,
+            last_filter_state: crate::model::FilterState::default(),
         }
     }
 }
 
 impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.drain_log_channel();
+        let had_new_data = self.drain_log_channel();
         self.drain_device_channel();
         self.drain_pid_map_channel();
         self.check_search_debounce();
@@ -235,9 +239,11 @@ impl eframe::App for NlogcatApp {
             }
         }
 
-        // While streaming, drive repaints at ~30fps so eframe doesn't go idle.
-        if self.state.is_streaming {
+        // Drive repaints: 30fps when data is flowing, 200ms when streaming but quiet.
+        if had_new_data {
             ctx.request_repaint_after(Duration::from_millis(33));
+        } else if self.state.is_streaming {
+            ctx.request_repaint_after(Duration::from_millis(200));
         }
     }
 
@@ -247,8 +253,7 @@ impl eframe::App for NlogcatApp {
 }
 
 impl NlogcatApp {
-    fn drain_log_channel(&mut self) {
-        // Always drain the channel so the buffer stays current.
+    fn drain_log_channel(&mut self) -> bool {
         const MAX_PER_FRAME: usize = 500;
         let mut new_entries = Vec::new();
         for _ in 0..MAX_PER_FRAME {
@@ -258,19 +263,17 @@ impl NlogcatApp {
             }
         }
         if new_entries.is_empty() {
-            return;
+            return false;
         }
 
         let Ok(mut buffer) = self.state.log_buffer.lock() else {
-            return;
+            return false;
         };
         for entry in new_entries {
             buffer.push(entry);
         }
         drop(buffer);
 
-        // Trigger a visual refresh at ~30fps so the table redraws in batches
-        // rather than line-by-line at 60fps, which causes eye-straining flicker.
         let now = Instant::now();
         if now.duration_since(self.last_drain) >= Duration::from_millis(33) {
             self.last_drain = now;
@@ -279,6 +282,7 @@ impl NlogcatApp {
             }
             self.state.filter_dirty = true;
         }
+        true
     }
 
     fn check_search_debounce(&mut self) {
@@ -294,17 +298,47 @@ impl NlogcatApp {
         if !self.state.filter_dirty {
             return;
         }
-        let new_indices = {
-            let Ok(buffer) = self.state.log_buffer.lock() else {
-                return;
+
+        let Ok(buffer) = self.state.log_buffer.lock() else {
+            return;
+        };
+
+        let current_len = buffer.entries().len();
+        let filter_unchanged = self.state.filter == self.last_filter_state;
+        let only_appended = current_len > self.state.filter_buf_len;
+
+        let safe_to_append = filter_unchanged
+            && only_appended
+            && self.state.filter_buf_len > 0
+            && current_len < buffer.max_size();
+
+        if safe_to_append {
+            let q_low = if !self.state.filter.case_sensitive && !self.state.filter.search_query.is_empty() {
+                Some(self.state.filter.search_query.to_lowercase())
+            } else {
+                None
             };
-            crate::engine::filter::FilterEngine::compute_indices(
+            let start = self.state.filter_buf_len;
+            for (abs_idx, entry) in buffer.entries().iter().enumerate().skip(start) {
+                if crate::engine::filter::FilterEngine::matches(
+                    entry,
+                    &self.state.filter,
+                    &self.state.pid_map,
+                    q_low.as_deref(),
+                ) {
+                    self.state.filtered_indices.push(abs_idx);
+                }
+            }
+        } else {
+            self.state.filtered_indices = crate::engine::filter::FilterEngine::compute_indices(
                 &buffer,
                 &self.state.filter,
                 &self.state.pid_map,
-            )
-        };
-        self.state.filtered_indices = new_indices;
+            );
+            self.last_filter_state = self.state.filter.clone();
+        }
+
+        self.state.filter_buf_len = current_len;
         self.state.filter_dirty = false;
     }
 
@@ -334,23 +368,24 @@ impl NlogcatApp {
             return;
         };
 
-        let content = {
+        let result: std::io::Result<()> = (|| {
+            let file = std::fs::File::create(&path)?;
+            let mut writer = std::io::BufWriter::new(file);
             let Ok(buffer) = self.state.log_buffer.lock() else {
-                self.state.set_error("저장 실패: 버퍼 잠금 오류".to_string());
-                return;
+                return Err(std::io::Error::other("버퍼 잠금 오류"));
             };
             let entries = buffer.entries();
-            let mut out = String::with_capacity(self.state.filtered_indices.len() * 80);
             for &idx in &self.state.filtered_indices {
                 if let Some(entry) = entries.get(idx) {
-                    out.push_str(&entry.raw);
-                    out.push('\n');
+                    writer.write_all(entry.raw.as_bytes())?;
+                    writer.write_all(b"\n")?;
                 }
             }
-            out
-        };
+            drop(buffer);
+            writer.flush()
+        })();
 
-        match std::fs::File::create(&path).and_then(|mut f| f.write_all(content.as_bytes())) {
+        match result {
             Ok(()) => {
                 let filename = path
                     .file_name()
