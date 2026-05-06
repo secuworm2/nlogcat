@@ -6,7 +6,11 @@ const ERROR_BG: Color32 = Color32::from_rgb(45, 26, 10);
 const ERROR_ACCENT: Color32 = Color32::from_rgb(245, 158, 11);
 const ERROR_TEXT: Color32 = Color32::from_rgb(252, 211, 77);
 
-pub fn render(ctx: &egui::Context, state: &mut AppState) {
+pub fn render(
+    ctx: &egui::Context,
+    state: &mut AppState,
+    icon_textures: &std::collections::HashMap<String, egui::TextureHandle>,
+) {
     let panel_fill = ctx.style().visuals.panel_fill;
 
     egui::TopBottomPanel::top("toolbar")
@@ -51,6 +55,7 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     crate::ui::detail_modal::render(ctx, state);
     crate::ui::settings_panel::render(ctx, state);
     crate::ui::help_modal::render(ctx, state);
+    crate::ui::package_filter::render(ctx, state, icon_textures);
 }
 
 fn render_error_banner(ui: &mut egui::Ui, message: &str) {
