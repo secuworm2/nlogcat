@@ -1,6 +1,6 @@
 # nlogcat
 
-Android 기기의 로그를 Windows에서 GUI로 확인할 수 있는 GUI 뷰어입니다.  
+Android 기기의 로그를 Windows에서 실시간으로 확인하고 분석할 수 있는 logcat 뷰어입니다.  
 
 ---
 
