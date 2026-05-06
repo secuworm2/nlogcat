@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 use std::io::ErrorKind;
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 
 use crate::adb::AdbError;
 use crate::model::device::{Device, DeviceState};
 
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 pub fn list_devices(adb_path: &Path) -> Result<Vec<Device>, AdbError> {
     let output = std::process::Command::new(adb_path)
         .arg("devices")
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| {
             if e.kind() == ErrorKind::NotFound {
@@ -55,6 +59,7 @@ fn parse_device_line(line: &str) -> Option<Device> {
 pub fn query_pid_map(adb_path: &Path, serial: &str) -> HashMap<u32, String> {
     let Ok(output) = std::process::Command::new(adb_path)
         .args(["-s", serial, "shell", "ps", "-A"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
     else {
         return HashMap::new();
@@ -83,6 +88,7 @@ fn parse_ps_output(stdout: &str) -> HashMap<u32, String> {
 pub fn get_device_model(adb_path: &Path, serial: &str) -> Option<String> {
     let output = std::process::Command::new(adb_path)
         .args(["-s", serial, "shell", "getprop", "ro.product.model"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
 

@@ -4,6 +4,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 use super::LogParser;
 use crate::model::log_entry::LogEntry;
 
@@ -24,6 +26,7 @@ impl AdbStreamer {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
                 .kill_on_drop(true)
+                .creation_flags(CREATE_NO_WINDOW)
                 .spawn()
             else {
                 return;
