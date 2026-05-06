@@ -59,6 +59,7 @@ pub struct AppState {
     pub table_top_y: f32,
     pub drag_select_anchor: Option<usize>,
     pub filter_buf_len: usize,
+    pub show_package_filter: bool,
 }
 
 impl AppState {
@@ -79,6 +80,10 @@ pub struct NlogcatApp {
     last_drain: Instant,
     active_serial: Option<String>,
     last_filter_state: crate::model::FilterState,
+    icon_tx: mpsc::Sender<(String, Vec<u8>)>,
+    icon_rx: mpsc::Receiver<(String, Vec<u8>)>,
+    pub icon_textures: HashMap<String, egui::TextureHandle>,
+    icon_loading: std::collections::HashSet<String>,
 }
 
 impl NlogcatApp {
@@ -164,7 +169,10 @@ impl NlogcatApp {
             table_top_y: 0.0,
             drag_select_anchor: None,
             filter_buf_len: 0,
+            show_package_filter: false,
         };
+
+        let (icon_tx, icon_rx) = mpsc::channel::<(String, Vec<u8>)>(64);
 
         Self {
             state,
@@ -177,6 +185,10 @@ impl NlogcatApp {
             last_drain: Instant::now(),
             active_serial: None,
             last_filter_state: crate::model::FilterState::default(),
+            icon_tx,
+            icon_rx,
+            icon_textures: HashMap::new(),
+            icon_loading: std::collections::HashSet::new(),
         }
     }
 }
@@ -185,6 +197,7 @@ impl eframe::App for NlogcatApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let had_new_data = self.drain_log_channel();
         self.drain_device_channel();
+        self.drain_package_icons(ctx);
         self.drain_pid_map_channel();
         self.check_search_debounce();
         self.recompute_filter_if_dirty();
@@ -215,8 +228,22 @@ impl eframe::App for NlogcatApp {
             let _ = settings::save(&self.state.settings);
         }
 
+        if self.state.show_package_filter {
+            if let Some(serial) = self.state.selected_device.clone() {
+                let packages: Vec<String> = self.state.pid_map.values()
+                    .filter(|p| !p.is_empty())
+                    .cloned()
+                    .collect::<std::collections::HashSet<_>>()
+                    .into_iter()
+                    .collect();
+                for pkg in packages {
+                    self.spawn_icon_load(pkg, serial.clone());
+                }
+            }
+        }
+
         if self.state.selected_device.is_some() {
-            crate::ui::main_view::render(ctx, &mut self.state);
+            crate::ui::main_view::render(ctx, &mut self.state, &self.icon_textures);
         } else {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
@@ -520,6 +547,41 @@ impl NlogcatApp {
                 self.state.last_error_time = None;
             }
         }
+    }
+
+    fn drain_package_icons(&mut self, ctx: &egui::Context) {
+        while let Ok((package, bytes)) = self.icon_rx.try_recv() {
+            self.icon_loading.remove(&package);
+            if let Ok(img) = image::load_from_memory(&bytes) {
+                let rgba = img.to_rgba8();
+                let (w, h) = rgba.dimensions();
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                    [w as usize, h as usize],
+                    rgba.as_flat_samples().as_slice(),
+                );
+                let texture = ctx.load_texture(
+                    format!("pkg_icon_{package}"),
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                self.icon_textures.insert(package, texture);
+            }
+        }
+    }
+
+    fn spawn_icon_load(&mut self, package: String, serial: String) {
+        if self.icon_textures.contains_key(&package) || self.icon_loading.contains(&package) {
+            return;
+        }
+        let Some(ref mgr) = self.adb_manager else { return; };
+        let adb_path = mgr.adb_path.clone();
+        let tx = self.icon_tx.clone();
+        self.icon_loading.insert(package.clone());
+        tokio::task::spawn_blocking(move || {
+            if let Some(bytes) = crate::adb::package::load_icon_bytes(&adb_path, &serial, &package) {
+                let _ = tx.blocking_send((package, bytes));
+            }
+        });
     }
 
     fn build_copy_content(&self) -> String {

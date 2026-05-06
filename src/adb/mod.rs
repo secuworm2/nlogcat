@@ -1,5 +1,6 @@
 pub mod device;
 pub mod manager;
+pub mod package;
 pub mod parser;
 pub mod streamer;
 
