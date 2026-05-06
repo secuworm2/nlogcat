@@ -239,11 +239,11 @@ impl eframe::App for NlogcatApp {
             }
         }
 
-        // Drive repaints: 30fps when data is flowing, 200ms when streaming but quiet.
+        // Drive repaints: 100ms when data is flowing, 500ms when streaming but quiet.
         if had_new_data {
-            ctx.request_repaint_after(Duration::from_millis(33));
+            ctx.request_repaint_after(Duration::from_millis(100));
         } else if self.state.is_streaming {
-            ctx.request_repaint_after(Duration::from_millis(200));
+            ctx.request_repaint_after(Duration::from_millis(500));
         }
     }
 
@@ -275,7 +275,7 @@ impl NlogcatApp {
         drop(buffer);
 
         let now = Instant::now();
-        if now.duration_since(self.last_drain) >= Duration::from_millis(33) {
+        if now.duration_since(self.last_drain) >= Duration::from_millis(100) {
             self.last_drain = now;
             if self.state.auto_scroll {
                 self.state.scroll_to_bottom = true;
