@@ -18,7 +18,7 @@ pub fn system_monospace_fonts() -> &'static [FontInfo] {
 
 // ── public warm-up ──────────────────────────────────────────────────────────
 
-/// Call this once at startup (e.g. in a spawn_blocking task) to pre-warm the
+/// Call this once at startup (e.g. in a `spawn_blocking` task) to pre-warm the
 /// cache so the settings panel opens without delay.
 pub fn warm_up() {
     let _ = system_monospace_fonts();
@@ -48,7 +48,7 @@ fn scan_dir(dir: &str, out: &mut Vec<FontInfo>) {
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
-            .map(|s| s.to_ascii_lowercase())
+            .map(str::to_ascii_lowercase)
             .unwrap_or_default();
         if !matches!(ext.as_str(), "ttf" | "otf" | "ttc" | "otc") {
             continue;
@@ -62,6 +62,7 @@ fn scan_dir(dir: &str, out: &mut Vec<FontInfo>) {
                 let Some(font_offset) = read_u32(&data, 12 + i * 4).map(|v| v as usize) else {
                     break;
                 };
+                #[allow(clippy::cast_possible_truncation)]
                 if let Some(info) = try_parse(&data, font_offset, &path_str, i as u32) {
                     out.push(info);
                 }
@@ -116,8 +117,8 @@ fn table_directory(data: &[u8], font_start: usize) -> Option<Vec<TableEntry>> {
     Some(tables)
 }
 
-fn table_slice<'a>(data: &'a [u8], tables: &[TableEntry], tag: &[u8; 4]) -> Option<&'a [u8]> {
-    let e = tables.iter().find(|t| &t.tag == tag)?;
+fn table_slice<'a>(data: &'a [u8], tables: &[TableEntry], tag: [u8; 4]) -> Option<&'a [u8]> {
+    let e = tables.iter().find(|t| t.tag == tag)?;
     let s = e.offset as usize;
     data.get(s..s + e.length as usize)
 }
@@ -125,22 +126,21 @@ fn table_slice<'a>(data: &'a [u8], tables: &[TableEntry], tag: &[u8; 4]) -> Opti
 /// Reads `post.isFixedPitch` (uint32 at byte offset 12 of the `post` table).
 /// Nonzero means the font is monospace.
 fn is_fixed_pitch(data: &[u8], tables: &[TableEntry]) -> bool {
-    table_slice(data, tables, b"post")
+    table_slice(data, tables, *b"post")
         .and_then(|p| read_u32(p, 12))
-        .map(|v| v != 0)
-        .unwrap_or(false)
+        .is_some_and(|v| v != 0)
 }
 
 /// Reads the font family name from the `name` table.
 /// Prefers name ID 16 (Preferred Family) over 1 (Font Family),
 /// and Windows Unicode (platform 3, encoding 1) over other encodings.
 fn family_name(data: &[u8], tables: &[TableEntry]) -> Option<String> {
-    let nt = table_slice(data, tables, b"name")?;
-    let count = read_u16(nt, 2)? as usize;
-    let str_base = read_u16(nt, 4)? as usize;
-
     // (platform, encoding, lang, name_id, str_len, str_off)
     type Record = (u16, u16, u16, u16, u16, u16);
+
+    let nt = table_slice(data, tables, *b"name")?;
+    let count = read_u16(nt, 2)? as usize;
+    let str_base = read_u16(nt, 4)? as usize;
     let mut best: Option<Record> = None;
 
     for i in 0..count {
@@ -157,7 +157,7 @@ fn family_name(data: &[u8], tables: &[TableEntry]) -> Option<String> {
         }
 
         let score = name_score(pid, enc, lang, nid);
-        let best_score = best.map(|(p, e, l, n, _, _)| name_score(p, e, l, n)).unwrap_or(0);
+        let best_score = best.map_or(0, |(p, e, l, n, _, _)| name_score(p, e, l, n));
         if score > best_score {
             best = Some((pid, enc, lang, nid, len, off));
         }
@@ -180,10 +180,10 @@ fn family_name(data: &[u8], tables: &[TableEntry]) -> Option<String> {
     }
 }
 
-/// Higher = preferred. Ranks by: name_id 16 > 1, Windows Unicode > other, English > other.
+/// Higher = preferred. Ranks by: `name_id` 16 > 1, Windows Unicode > other, English > other.
 fn name_score(pid: u16, enc: u16, lang: u16, nid: u16) -> u32 {
     let preferred_name = if nid == 16 { 4 } else { 0 };
     let preferred_platform = if pid == 3 && enc == 1 { 2 } else { 0 };
-    let preferred_lang = if lang == 0x0409 { 1 } else { 0 }; // en-US
+    let preferred_lang = u32::from(lang == 0x0409); // en-US
     preferred_name + preferred_platform + preferred_lang
 }

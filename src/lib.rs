@@ -7,4 +7,5 @@
 pub mod adb;
 pub mod config;
 pub mod engine;
+pub mod ios;
 pub mod model;

@@ -8,6 +8,7 @@
 mod app;
 mod adb;
 mod engine;
+mod ios;
 mod model;
 mod ui;
 mod config;

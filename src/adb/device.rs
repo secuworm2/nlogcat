@@ -4,7 +4,7 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 
 use crate::adb::AdbError;
-use crate::model::device::{Device, DeviceState};
+use crate::model::device::{Device, DeviceState, Platform};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -52,6 +52,7 @@ fn parse_device_line(line: &str) -> Option<Device> {
         serial,
         state,
         model: None,
+        platform: Platform::Android,
     })
 }
 

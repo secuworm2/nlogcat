@@ -96,11 +96,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
 fn connection_indicator(state: &AppState) -> (String, Color32) {
     if let Some(serial) = &state.selected_device {
         if let Some(device) = state.devices.iter().find(|d| &d.serial == serial) {
-            let model = device.model.as_deref().unwrap_or("Unknown");
-            return (
-                format!("● 연결됨: {model} ({serial})"),
-                STATUS_CONNECTED,
-            );
+            let label = device.display_label();
+            return (format!("● 연결됨: {label}"), STATUS_CONNECTED);
         }
     }
     ("○ 연결 끊김".to_owned(), STATUS_DISCONNECTED)

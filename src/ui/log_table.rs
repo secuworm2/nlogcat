@@ -8,6 +8,7 @@ const HEADER_HEIGHT: f32 = 24.0;
 const HANDLE_W: f32 = 8.0;
 const MIN_COL_W: f32 = 30.0;
 
+#[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
 pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let font_size = state.settings.font_size;
     let row_height = font_size + 8.0;
@@ -130,7 +131,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         || detail_log_id == Some(entry.id)
                         || focused_log_id == Some(entry.id);
                     let entry_id = entry.id;
-                    let pkg_name = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
+                    let pkg_name = pid_map.get(&entry.pid).map_or("", String::as_str);
                     let resp = render_row(
                         ui,
                         entry,
@@ -183,6 +184,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                 let total = state.filtered_indices.len();
                 if total > 0 {
                     let content_y = py - state.table_top_y + scroll_offset_y;
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap, clippy::cast_precision_loss)]
                     let current = ((content_y / row_height_full).floor() as i64)
                         .clamp(0, total as i64 - 1) as usize;
                     let lo = anchor.min(current);
@@ -259,6 +261,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 fn navigate_focus(state: &mut AppState, delta: i64) {
     state.auto_scroll = false;
     state.scroll_to_bottom = false;
@@ -493,6 +496,7 @@ fn render_row(
     response
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_cell(
     ui: &mut egui::Ui,
     text: &str,

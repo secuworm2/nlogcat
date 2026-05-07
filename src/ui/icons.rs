@@ -72,6 +72,7 @@ pub fn save(painter: &Painter, rect: Rect, color: Color32) {
     );
 }
 
+#[allow(clippy::cast_precision_loss)]
 pub fn refresh(painter: &Painter, rect: Rect, color: Color32) {
     use std::f32::consts::PI;
     let cx = rect.center().x;
@@ -100,6 +101,7 @@ pub fn refresh(painter: &Painter, rect: Rect, color: Color32) {
     painter.add(Shape::convex_polygon(vec![tip, a1, a2], color, Stroke::NONE));
 }
 
+#[allow(clippy::cast_precision_loss)]
 pub fn gear(painter: &Painter, rect: Rect, color: Color32) {
     use std::f32::consts::PI;
     let cx = rect.center().x;

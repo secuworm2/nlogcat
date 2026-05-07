@@ -13,13 +13,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let devices_info: Vec<(String, String)> = state
         .devices
         .iter()
-        .map(|d| {
-            let label = d
-                .model
-                .as_deref()
-                .map_or_else(|| d.serial.clone(), |m| format!("{} ({})", m, d.serial));
-            (d.serial.clone(), label)
-        })
+        .map(|d| (d.serial.clone(), d.display_label()))
         .collect();
 
     let has_devices = !devices_info.is_empty();
@@ -70,10 +64,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
             if icon_button(ui, crate::ui::icons::pause, "정지").clicked() {
                 state.is_streaming = false;
             }
-        } else {
-            if icon_button(ui, crate::ui::icons::play, "재개").clicked() {
-                state.is_streaming = true;
-            }
+        } else if icon_button(ui, crate::ui::icons::play, "재개").clicked() {
+            state.is_streaming = true;
         }
 
         ui.add_space(2.0);

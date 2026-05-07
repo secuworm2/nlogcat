@@ -13,6 +13,7 @@ pub enum SearchField {
 }
 
 impl SearchField {
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             Self::All => "전체",

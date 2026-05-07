@@ -21,7 +21,8 @@ use tokio::sync::mpsc;
 
 use crate::adb::{list_devices, query_pid_map, AdbManager};
 use crate::config::settings::{self, AppSettings, Theme};
-use crate::model::{Device, FilterState, LogBuffer, LogEntry};
+use crate::ios::{list_ios_devices, resolve_ios_bin_dir, IosManager, ItunesChecker};
+use crate::model::{Device, FilterState, LogBuffer, LogEntry, Platform};
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
@@ -59,6 +60,9 @@ pub struct AppState {
     pub table_top_y: f32,
     pub drag_select_anchor: Option<usize>,
     pub filter_buf_len: usize,
+    // iOS 관련
+    pub itunes_installed: bool,
+    pub ios_available: bool,
 }
 
 impl AppState {
@@ -71,8 +75,12 @@ impl AppState {
 pub struct NlogcatApp {
     pub state: AppState,
     device_rx: mpsc::Receiver<Vec<Device>>,
+    ios_device_rx: mpsc::Receiver<Vec<Device>>,
+    android_cached: Vec<Device>,
+    ios_cached: Vec<Device>,
     pub log_tx: mpsc::Sender<LogEntry>,
     adb_manager: Option<AdbManager>,
+    ios_manager: Option<IosManager>,
     pid_map_rx: mpsc::Receiver<HashMap<u32, String>>,
     pid_map_tx: mpsc::Sender<HashMap<u32, String>>,
     pid_refresh_task: Option<tokio::task::JoinHandle<()>>,
@@ -97,15 +105,15 @@ impl NlogcatApp {
         let (device_poll_tx, mut device_poll_rx) = mpsc::channel::<()>(1);
         let (device_result_tx, device_rx) = mpsc::channel::<Vec<Device>>(4);
         let (pid_map_tx, pid_map_rx) = mpsc::channel::<HashMap<u32, String>>(4);
+        let (ios_device_tx, ios_device_rx) = mpsc::channel::<Vec<Device>>(4);
 
-        tokio::task::spawn_blocking(|| crate::theme::font_scanner::warm_up());
+        tokio::task::spawn_blocking(crate::theme::font_scanner::warm_up);
 
+        // Android ADB 설정
         let adb_path_result = AdbManager::resolve_adb_path(settings.adb_path.as_deref());
         let initial_adb_error = adb_path_result.as_ref().err().map(ToString::to_string);
         let adb_path = adb_path_result.ok();
-        let adb_manager = adb_path
-            .as_ref()
-            .map(|p| AdbManager::new(p.clone()));
+        let adb_manager = adb_path.as_ref().map(|p| AdbManager::new(p.clone()));
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(3));
@@ -128,6 +136,9 @@ impl NlogcatApp {
                 }
             }
         });
+
+        // iOS 설정
+        let (ios_manager, ios_available, itunes_installed) = init_ios(ios_device_tx);
 
         let state = AppState {
             devices: Vec::new(),
@@ -164,13 +175,19 @@ impl NlogcatApp {
             table_top_y: 0.0,
             drag_select_anchor: None,
             filter_buf_len: 0,
+            itunes_installed,
+            ios_available,
         };
 
         Self {
             state,
             device_rx,
+            ios_device_rx,
+            android_cached: Vec::new(),
+            ios_cached: Vec::new(),
             log_tx,
             adb_manager,
+            ios_manager,
             pid_map_rx,
             pid_map_tx,
             pid_refresh_task: None,
@@ -179,6 +196,33 @@ impl NlogcatApp {
             last_filter_state: crate::model::FilterState::default(),
         }
     }
+}
+
+fn init_ios(
+    ios_device_tx: mpsc::Sender<Vec<Device>>,
+) -> (Option<IosManager>, bool, bool) {
+    let ios_bin_result = resolve_ios_bin_dir();
+    let ios_available = ios_bin_result.is_ok();
+    let itunes_installed = ios_available && ItunesChecker::is_installed();
+    let ios_manager = ios_bin_result.as_ref().ok().map(|bin| IosManager::new(bin.clone()));
+
+    if let Ok(ref bin_dir) = ios_bin_result {
+        let bin = bin_dir.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(3));
+            loop {
+                interval.tick().await;
+                let b = bin.clone();
+                let devices = tokio::task::spawn_blocking(move || list_ios_devices(&b))
+                    .await
+                    .unwrap_or_default();
+                if ios_device_tx.send(devices).await.is_err() {
+                    break;
+                }
+            }
+        });
+    }
+    (ios_manager, ios_available, itunes_installed)
 }
 
 impl eframe::App for NlogcatApp {
@@ -221,9 +265,6 @@ impl eframe::App for NlogcatApp {
             crate::ui::empty_view::render(ctx, &mut self.state);
         }
 
-        // Apply clipboard copy AFTER all UI renders.
-        // If a selectable label already wrote copied_text (e.g. message area),
-        // respect that and do not overwrite with log-row content.
         if copy_requested && !self.state.selected_log_ids.is_empty() {
             let text = self.build_copy_content();
             let count = self.state.selected_log_ids.len();
@@ -239,7 +280,6 @@ impl eframe::App for NlogcatApp {
             }
         }
 
-        // Drive repaints: 100ms when data is flowing, 500ms when streaming but quiet.
         if had_new_data {
             ctx.request_repaint_after(Duration::from_millis(100));
         } else if self.state.is_streaming {
@@ -343,8 +383,19 @@ impl NlogcatApp {
     }
 
     fn drain_device_channel(&mut self) {
+        let mut changed = false;
         while let Ok(devices) = self.device_rx.try_recv() {
-            self.state.devices = devices;
+            self.android_cached = devices;
+            changed = true;
+        }
+        while let Ok(devices) = self.ios_device_rx.try_recv() {
+            self.ios_cached = devices;
+            changed = true;
+        }
+        if changed {
+            let mut all = self.android_cached.clone();
+            all.extend_from_slice(&self.ios_cached);
+            self.state.devices = all;
         }
     }
 
@@ -400,23 +451,48 @@ impl NlogcatApp {
         }
     }
 
+    fn platform_of(&self, serial: &str) -> Platform {
+        self.state
+            .devices
+            .iter()
+            .find(|d| d.serial == serial)
+            .map_or(Platform::Android, |d| d.platform.clone())
+    }
+
+    fn stop_all_streams(&mut self) {
+        if let Some(ref mut mgr) = self.adb_manager {
+            mgr.stop_stream();
+        }
+        self.stop_pid_refresh();
+        if let Some(ref mut ios_mgr) = self.ios_manager {
+            ios_mgr.stop_stream();
+        }
+        self.active_serial = None;
+    }
+
     fn manage_streaming(&mut self) {
         let Some(serial) = self.state.selected_device.clone() else {
-            let should_stop = self.adb_manager.as_ref().is_some_and(|m| m.is_streaming());
-            if should_stop {
-                if let Some(ref mut mgr) = self.adb_manager {
-                    mgr.stop_stream();
-                }
-                self.stop_pid_refresh();
-            }
-            if self.state.is_streaming {
-                self.state.is_streaming = false;
-            }
-            self.active_serial = None;
+            self.stop_all_streams();
+            self.state.is_streaming = false;
             return;
         };
 
-        // Collect decisions from the borrow of adb_manager, then act after borrow ends.
+        let device_changed = self.active_serial.as_deref() != Some(serial.as_str());
+
+        // 디바이스 변경 시 이전 플랫폼의 스트림을 모두 중단한다.
+        if device_changed && self.active_serial.is_some() {
+            self.stop_all_streams();
+        }
+
+        let platform = self.platform_of(&serial);
+
+        match platform {
+            Platform::Android => self.manage_android_streaming(&serial),
+            Platform::Ios => self.manage_ios_streaming(&serial),
+        }
+    }
+
+    fn manage_android_streaming(&mut self, serial: &str) {
         enum Action {
             None,
             StartStream { adb_path: std::path::PathBuf },
@@ -424,7 +500,7 @@ impl NlogcatApp {
             StopStream,
         }
 
-        let device_changed = self.active_serial.as_deref() != Some(serial.as_str());
+        let device_changed = self.active_serial.as_deref() != Some(serial);
 
         let action = match self.adb_manager {
             None => {
@@ -437,7 +513,7 @@ impl NlogcatApp {
             Some(ref mut mgr) => {
                 if self.state.is_streaming && (!mgr.is_streaming() || device_changed) {
                     let adb_path = mgr.adb_path.clone();
-                    match mgr.start_stream(&serial, self.log_tx.clone()) {
+                    match mgr.start_stream(serial, self.log_tx.clone()) {
                         Ok(()) => Action::StartStream { adb_path },
                         Err(e) => Action::StartFailed(e.to_string()),
                     }
@@ -453,8 +529,8 @@ impl NlogcatApp {
         match action {
             Action::None => {}
             Action::StartStream { adb_path } => {
-                self.active_serial = Some(serial.clone());
-                self.start_pid_refresh(adb_path, serial);
+                self.active_serial = Some(serial.to_owned());
+                self.start_pid_refresh(adb_path, serial.to_owned());
             }
             Action::StartFailed(msg) => {
                 self.state.is_streaming = false;
@@ -465,6 +541,43 @@ impl NlogcatApp {
                 self.active_serial = None;
                 self.stop_pid_refresh();
             }
+        }
+    }
+
+    fn manage_ios_streaming(&mut self, udid: &str) {
+        let already_streaming = self.ios_manager.as_ref().is_some_and(IosManager::is_streaming);
+
+        if self.state.is_streaming && !already_streaming {
+            if !self.state.itunes_installed {
+                self.state.is_streaming = false;
+                self.state.set_error(
+                    "iTunes(Apple Mobile Device Support)가 설치되어 있지 않습니다.".to_string(),
+                );
+                return;
+            }
+            let Some(ref mut ios_mgr) = self.ios_manager else {
+                self.state.is_streaming = false;
+                self.state
+                    .set_error("iOS 로그 도구(idevicesyslog.exe)를 찾을 수 없습니다.".to_string());
+                return;
+            };
+            match ios_mgr.start_stream(udid, self.log_tx.clone()) {
+                Ok(()) => {
+                    self.active_serial = Some(udid.to_owned());
+                }
+                Err(e) => {
+                    self.state.is_streaming = false;
+                    self.active_serial = None;
+                    self.state.set_error(e.to_string());
+                }
+            }
+        } else if !self.state.is_streaming && already_streaming {
+            if let Some(ref mut ios_mgr) = self.ios_manager {
+                ios_mgr.stop_stream();
+            }
+            self.active_serial = None;
+        } else if self.state.is_streaming && already_streaming && self.active_serial.is_none() {
+            self.active_serial = Some(udid.to_owned());
         }
     }
 
@@ -497,13 +610,24 @@ impl NlogcatApp {
         if !self.state.is_streaming {
             return;
         }
-        let finished = self
-            .adb_manager
-            .as_ref()
-            .is_some_and(AdbManager::task_finished);
+
+        let platform = self
+            .state
+            .selected_device
+            .as_deref()
+            .map_or(Platform::Android, |s| self.platform_of(s));
+
+        let finished = match platform {
+            Platform::Android => self.adb_manager.as_ref().is_some_and(AdbManager::task_finished),
+            Platform::Ios => self.ios_manager.as_ref().is_some_and(IosManager::task_finished),
+        };
+
         if finished {
             if let Some(ref mut mgr) = self.adb_manager {
                 mgr.stop_stream();
+            }
+            if let Some(ref mut ios_mgr) = self.ios_manager {
+                ios_mgr.stop_stream();
             }
             self.stop_pid_refresh();
             self.active_serial = None;

@@ -19,7 +19,7 @@ impl FilterEngine {
 
         if !filter.search_query.is_empty() {
             let q = filter.search_query.as_str();
-            let pkg = pid_map.get(&entry.pid).map(String::as_str).unwrap_or("");
+            let pkg = pid_map.get(&entry.pid).map_or("", String::as_str);
 
             let found = match &filter.search_field {
                 SearchField::All => {
