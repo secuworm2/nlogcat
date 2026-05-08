@@ -90,8 +90,8 @@ fn render_card(ui: &mut egui::Ui, state: &mut AppState) {
         let guidance = match state.selected_device.as_deref().and_then(|s| {
             state.devices.iter().find(|d| d.serial == s).map(|d| &d.platform)
         }) {
-            Some(Platform::Ios) => "iOS: iTunes 설치 후 기기에서 신뢰를 허용해 주세요.",
-            _ => "Android: USB 디버깅 활성화 후 연결해 주세요.\niOS: iTunes 설치 후 연결해 주세요.",
+            Some(Platform::Ios) => "[iOS] iTunes 설치 후 기기에서 신뢰를 허용해 주세요.",
+            _ => "[Android] USB 디버깅 활성화 후 연결해 주세요.\n[iOS] iTunes 설치 후 연결해 주세요.",
         };
         ui.label(guidance);
         ui.add_space(16.0);
