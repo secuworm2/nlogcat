@@ -1,6 +1,6 @@
 use crate::app::{AppState, ColumnWidths};
 use crate::engine::search::SearchEngine;
-use crate::model::LogEntry;
+use crate::model::{LogEntry, Platform};
 use crate::theme::colors::{level_label_color, level_row_bg};
 use egui::{Color32, FontId};
 
@@ -13,7 +13,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
     let font_size = state.settings.font_size;
     let row_height = font_size + 8.0;
 
-    render_header(ui, &mut state.col_widths);
+    let platform = state.current_platform();
+    render_header(ui, &mut state.col_widths, &platform);
 
     let search_query = state.filter.search_query.clone();
     let case_sensitive = state.filter.case_sensitive;
@@ -144,6 +145,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
                         pkg_name,
                         widths,
                         dark_mode,
+                        &platform,
                     );
                     if resp.drag_started() {
                         drag_started_at = Some((row_idx, entry_id));
@@ -301,7 +303,10 @@ fn navigate_focus(state: &mut AppState, delta: i64) {
     }
 }
 
-fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
+fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths, platform: &Platform) {
+    let show_pkg = *platform == Platform::Android;
+    let pkg_w = if show_pkg { widths.pkg } else { 0.0 };
+
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, HEADER_HEIGHT), egui::Sense::hover());
     let header_bg = ui.visuals().faint_bg_color;
@@ -316,16 +321,20 @@ fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
     let tag_x = lv_x + widths.level;
     let pid_x = tag_x + widths.tag;
     let pkg_x = pid_x + widths.pid;
-    let msg_x = pkg_x + widths.pkg;
+    let msg_x = pkg_x + pkg_w;
 
-    for (col_x, label) in [
+    let mut cols: Vec<(f32, &str)> = vec![
         (x, "시간"),
         (lv_x, "Lv"),
         (tag_x, "태그"),
         (pid_x, "PID"),
-        (pkg_x, "패키지"),
-        (msg_x, "메시지"),
-    ] {
+    ];
+    if show_pkg {
+        cols.push((pkg_x, "패키지"));
+    }
+    cols.push((msg_x, "메시지"));
+
+    for (col_x, label) in cols {
         ui.painter().text(
             egui::pos2(col_x, y),
             egui::Align2::LEFT_CENTER,
@@ -335,8 +344,16 @@ fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
         );
     }
 
-    let boundaries = [lv_x, tag_x, pid_x, pkg_x, msg_x];
-    let handle_ids = ["cr_time", "cr_lv", "cr_tag", "cr_pid", "cr_pkg"];
+    let boundaries: Vec<f32> = if show_pkg {
+        vec![lv_x, tag_x, pid_x, pkg_x, msg_x]
+    } else {
+        vec![lv_x, tag_x, pid_x, msg_x]
+    };
+    let handle_ids: &[&str] = if show_pkg {
+        &["cr_time", "cr_lv", "cr_tag", "cr_pid", "cr_pkg"]
+    } else {
+        &["cr_time", "cr_lv", "cr_tag", "cr_pid"]
+    };
     let mut drag: Option<(usize, f32)> = None;
 
     for (i, (&bx, &hid)) in boundaries.iter().zip(handle_ids.iter()).enumerate() {
@@ -361,18 +378,28 @@ fn render_header(ui: &mut egui::Ui, widths: &mut ColumnWidths) {
     }
 
     if let Some((i, dx)) = drag {
-        match i {
-            0 => widths.time = (widths.time + dx).max(MIN_COL_W),
-            1 => widths.level = (widths.level + dx).max(20.0),
-            2 => widths.tag = (widths.tag + dx).max(MIN_COL_W),
-            3 => widths.pid = (widths.pid + dx).max(MIN_COL_W),
-            4 => widths.pkg = (widths.pkg + dx).max(MIN_COL_W),
-            _ => {}
+        if show_pkg {
+            match i {
+                0 => widths.time = (widths.time + dx).max(MIN_COL_W),
+                1 => widths.level = (widths.level + dx).max(20.0),
+                2 => widths.tag = (widths.tag + dx).max(MIN_COL_W),
+                3 => widths.pid = (widths.pid + dx).max(MIN_COL_W),
+                4 => widths.pkg = (widths.pkg + dx).max(MIN_COL_W),
+                _ => {}
+            }
+        } else {
+            match i {
+                0 => widths.time = (widths.time + dx).max(MIN_COL_W),
+                1 => widths.level = (widths.level + dx).max(20.0),
+                2 => widths.tag = (widths.tag + dx).max(MIN_COL_W),
+                3 => widths.pid = (widths.pid + dx).max(MIN_COL_W),
+                _ => {}
+            }
         }
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn render_row(
     ui: &mut egui::Ui,
     entry: &LogEntry,
@@ -385,6 +412,7 @@ fn render_row(
     pkg_name: &str,
     widths: &ColumnWidths,
     dark_mode: bool,
+    platform: &Platform,
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, response) =
@@ -408,6 +436,9 @@ fn render_row(
     };
     ui.painter().rect_filled(rect, 0.0, bg);
 
+    let show_pkg = *platform == Platform::Android;
+    let pkg_w = if show_pkg { widths.pkg } else { 0.0 };
+
     let font = FontId::monospace(font_size);
     let x = rect.min.x + 4.0;
     let y = rect.center().y;
@@ -416,7 +447,7 @@ fn render_row(
     let tag_x = lv_x + widths.level;
     let pid_x = tag_x + widths.tag;
     let pkg_x = pid_x + widths.pid;
-    let msg_x = pkg_x + widths.pkg;
+    let msg_x = pkg_x + pkg_w;
 
     let col_clip = |start: f32, width: f32| {
         egui::Rect::from_min_max(
@@ -435,12 +466,17 @@ fn render_row(
             weak_text,
         );
 
+    let lv_label = if *platform == Platform::Ios {
+        entry.level.ios_label()
+    } else {
+        entry.level.label()
+    };
     ui.painter()
         .with_clip_rect(col_clip(lv_x, widths.level))
         .text(
             egui::pos2(lv_x, y),
             egui::Align2::LEFT_CENTER,
-            entry.level.label(),
+            lv_label,
             font.clone(),
             level_label_color(entry.level, dark_mode),
         );
@@ -467,15 +503,17 @@ fn render_row(
             weak_text,
         );
 
-    ui.painter()
-        .with_clip_rect(col_clip(pkg_x, widths.pkg))
-        .text(
-            egui::pos2(pkg_x, y),
-            egui::Align2::LEFT_CENTER,
-            pkg_name,
-            font.clone(),
-            weak_text,
-        );
+    if show_pkg {
+        ui.painter()
+            .with_clip_rect(col_clip(pkg_x, widths.pkg))
+            .text(
+                egui::pos2(pkg_x, y),
+                egui::Align2::LEFT_CENTER,
+                pkg_name,
+                font.clone(),
+                weak_text,
+            );
+    }
 
     let msg_clip = egui::Rect::from_min_max(
         egui::pos2(msg_x, rect.min.y),

@@ -70,6 +70,14 @@ impl AppState {
         self.last_error = Some(msg);
         self.last_error_time = Some(Instant::now());
     }
+
+    #[must_use]
+    pub fn current_platform(&self) -> Platform {
+        self.selected_device
+            .as_deref()
+            .and_then(|s| self.devices.iter().find(|d| d.serial == s))
+            .map_or(Platform::Android, |d| d.platform.clone())
+    }
 }
 
 pub struct NlogcatApp {

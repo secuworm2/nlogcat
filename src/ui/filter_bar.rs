@@ -2,16 +2,16 @@ use egui::{Color32, ComboBox, RichText, Stroke, TextEdit};
 
 use crate::app::AppState;
 use crate::model::filter_state::SearchField;
-use crate::model::LogLevel;
+use crate::model::{LogLevel, Platform};
 use crate::theme::colors::{level_label_color, PRIMARY};
 
-const LEVELS: &[(LogLevel, &str)] = &[
-    (LogLevel::Verbose, "V"),
-    (LogLevel::Debug, "D"),
-    (LogLevel::Info, "I"),
-    (LogLevel::Warn, "W"),
-    (LogLevel::Error, "E"),
-    (LogLevel::Fatal, "F"),
+const LEVELS: &[LogLevel] = &[
+    LogLevel::Verbose,
+    LogLevel::Debug,
+    LogLevel::Info,
+    LogLevel::Warn,
+    LogLevel::Error,
+    LogLevel::Fatal,
 ];
 
 const SEARCH_FIELDS: &[SearchField] = &[
@@ -27,7 +27,12 @@ pub fn render(ui: &mut egui::Ui, state: &mut AppState) {
         ui.add_space(8.0);
 
         let dark_mode = ui.visuals().dark_mode;
-        for &(level, label) in LEVELS {
+        let platform = state.current_platform();
+        for &level in LEVELS {
+            let label = match platform {
+                Platform::Android => level.label(),
+                Platform::Ios => level.ios_label(),
+            };
             let active = state.filter.levels.contains(&level);
             if level_toggle(ui, label, level, active, dark_mode).clicked() {
                 if active {

@@ -37,6 +37,19 @@ impl LogLevel {
             Self::Unknown => "?",
         }
     }
+
+    #[must_use]
+    pub fn ios_label(self) -> &'static str {
+        match self {
+            Self::Verbose => "N",
+            Self::Debug => "D",
+            Self::Info => "I",
+            Self::Warn => "W",
+            Self::Error => "E",
+            Self::Fatal => "F",
+            Self::Unknown => "?",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
