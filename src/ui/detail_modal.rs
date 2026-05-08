@@ -1,7 +1,7 @@
 use egui::{Frame, Margin, RichText, Rounding, Stroke};
 
 use crate::app::AppState;
-use crate::model::LogEntry;
+use crate::model::{LogEntry, Platform};
 use crate::theme::colors::level_label_color;
 
 
@@ -38,6 +38,7 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
     let border_color = ctx.style().visuals.window_stroke.color;
 
     let mut close = false;
+    let platform = state.current_platform();
 
     egui::Window::new("__detail_modal")
         .title_bar(false)
@@ -52,7 +53,7 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
                 .stroke(Stroke::new(1.0, border_color)),
         )
         .show(ctx, |ui| {
-            render_content(ui, &entry, &mut close);
+            render_content(ui, &entry, &mut close, &platform);
         });
 
     if close {
@@ -110,7 +111,7 @@ fn navigate(state: &mut AppState, delta: i64) {
     }
 }
 
-fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
+fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool, platform: &Platform) {
     let dark_mode = ui.visuals().dark_mode;
     let text_color = ui.visuals().text_color();
     let weak_text = ui.visuals().weak_text_color();
@@ -134,9 +135,14 @@ fn render_content(ui: &mut egui::Ui, entry: &LogEntry, close: &mut bool) {
             field_row(ui, "시간", format!("{} {}", entry.date, entry.time), text_color, weak_text);
             ui.end_row();
 
+            let lv_text = if *platform == Platform::Ios {
+                entry.level.ios_full_label()
+            } else {
+                entry.level.full_label()
+            };
             ui.label(RichText::new("레벨").color(weak_text));
             ui.label(
-                RichText::new(entry.level.label())
+                RichText::new(lv_text)
                     .color(level_label_color(entry.level, dark_mode))
                     .monospace(),
             );

@@ -50,6 +50,32 @@ impl LogLevel {
             Self::Unknown => "?",
         }
     }
+
+    #[must_use]
+    pub fn full_label(self) -> &'static str {
+        match self {
+            Self::Verbose => "Verbose",
+            Self::Debug => "Debug",
+            Self::Info => "Info",
+            Self::Warn => "Warning",
+            Self::Error => "Error",
+            Self::Fatal => "Fatal",
+            Self::Unknown => "Unknown",
+        }
+    }
+
+    #[must_use]
+    pub fn ios_full_label(self) -> &'static str {
+        match self {
+            Self::Verbose => "Notice",
+            Self::Debug => "Debug",
+            Self::Info => "Info",
+            Self::Warn => "Warning",
+            Self::Error => "Error",
+            Self::Fatal => "Fault",
+            Self::Unknown => "Unknown",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

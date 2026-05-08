@@ -1,6 +1,7 @@
 use egui::{Frame, Margin, RichText, Stroke};
 
 use crate::app::AppState;
+use crate::model::Platform;
 use crate::theme::colors::level_label_color;
 
 pub fn render(ctx: &egui::Context, state: &AppState) {
@@ -47,8 +48,13 @@ pub fn render(ctx: &egui::Context, state: &AppState) {
                                 .size(font_size),
                         );
                         ui.add_space(8.0);
+                        let lv_text = if state.current_platform() == Platform::Ios {
+                            entry.level.ios_full_label()
+                        } else {
+                            entry.level.full_label()
+                        };
                         ui.label(
-                            RichText::new(entry.level.label())
+                            RichText::new(lv_text)
                                 .color(level_label_color(entry.level, dark_mode))
                                 .monospace()
                                 .size(font_size),
