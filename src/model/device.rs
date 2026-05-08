@@ -20,7 +20,7 @@ impl Device {
             Platform::Android => self
                 .model
                 .as_deref()
-                .map_or_else(|| self.serial.clone(), |m| format!("{m} ({})", self.serial)),
+                .map_or_else(|| format!("[Android] {}", self.serial), |m| format!("[Android] {m} ({})", self.serial)),
             Platform::Ios => self
                 .model
                 .as_deref()
