@@ -89,6 +89,59 @@
                             Value='1'
                             KeyPath='yes'/>
                     </Component>
+
+                    <Directory Id='AssetsDir' Name='assets'>
+                        <Directory Id='AssetsBinDir' Name='bin'>
+                            <Component Id='C_idevice_id_exe'                  Guid='*'><File Id='idevice_id_exe'                  Source='assets\bin\idevice_id.exe'                  KeyPath='yes'/></Component>
+                            <Component Id='C_idevicesyslog_exe'               Guid='*'><File Id='idevicesyslog_exe'               Source='assets\bin\idevicesyslog.exe'               KeyPath='yes'/></Component>
+                            <Component Id='C_usbmuxd_exe'                     Guid='*'><File Id='usbmuxd_exe'                     Source='assets\bin\usbmuxd.exe'                     KeyPath='yes'/></Component>
+                            <Component Id='C_usbmuxd_dll'                     Guid='*'><File Id='usbmuxd_dll'                     Source='assets\bin\usbmuxd.dll'                     KeyPath='yes'/></Component>
+                            <Component Id='C_imobiledevice_dll'               Guid='*'><File Id='imobiledevice_dll'               Source='assets\bin\imobiledevice.dll'               KeyPath='yes'/></Component>
+                            <Component Id='C_imobiledevice_net_lighthouse_dll' Guid='*'><File Id='imobiledevice_net_lighthouse_dll' Source='assets\bin\imobiledevice-net-lighthouse.dll' KeyPath='yes'/></Component>
+                            <Component Id='C_plist_dll'                       Guid='*'><File Id='plist_dll'                       Source='assets\bin\plist.dll'                       KeyPath='yes'/></Component>
+                            <Component Id='C_libcrypto_dll'                   Guid='*'><File Id='libcrypto_dll'                   Source='assets\bin\libcrypto-1_1-x64.dll'           KeyPath='yes'/></Component>
+                            <Component Id='C_libssl_dll'                      Guid='*'><File Id='libssl_dll'                      Source='assets\bin\libssl-1_1-x64.dll'              KeyPath='yes'/></Component>
+                            <Component Id='C_libusb_1_0_dll'                  Guid='*'><File Id='libusb_1_0_dll'                  Source='assets\bin\libusb-1.0.dll'                  KeyPath='yes'/></Component>
+                            <Component Id='C_libusb0_dll'                     Guid='*'><File Id='libusb0_dll'                     Source='assets\bin\libusb0.dll'                     KeyPath='yes'/></Component>
+                            <Component Id='C_libxml2_dll'                     Guid='*'><File Id='libxml2_dll'                     Source='assets\bin\libxml2.dll'                     KeyPath='yes'/></Component>
+                            <Component Id='C_libcurl_dll'                     Guid='*'><File Id='libcurl_dll'                     Source='assets\bin\libcurl.dll'                     KeyPath='yes'/></Component>
+                            <Component Id='C_iconv2_dll'                      Guid='*'><File Id='iconv2_dll'                      Source='assets\bin\iconv-2.dll'                     KeyPath='yes'/></Component>
+                            <Component Id='C_zlib1_dll'                       Guid='*'><File Id='zlib1_dll'                       Source='assets\bin\zlib1.dll'                       KeyPath='yes'/></Component>
+                            <Component Id='C_bz2_dll'                         Guid='*'><File Id='bz2_dll'                         Source='assets\bin\bz2.dll'                         KeyPath='yes'/></Component>
+                            <Component Id='C_lzma_dll'                        Guid='*'><File Id='lzma_dll'                        Source='assets\bin\lzma.dll'                        KeyPath='yes'/></Component>
+                            <Component Id='C_zip_dll'                         Guid='*'><File Id='zip_dll'                         Source='assets\bin\zip.dll'                         KeyPath='yes'/></Component>
+                            <Component Id='C_pcre_dll'                        Guid='*'><File Id='pcre_dll'                        Source='assets\bin\pcre.dll'                        KeyPath='yes'/></Component>
+                            <Component Id='C_pcreposix_dll'                   Guid='*'><File Id='pcreposix_dll'                   Source='assets\bin\pcreposix.dll'                   KeyPath='yes'/></Component>
+                            <Component Id='C_readline_dll'                    Guid='*'><File Id='readline_dll'                    Source='assets\bin\readline.dll'                    KeyPath='yes'/></Component>
+                            <Component Id='C_getopt_dll'                      Guid='*'><File Id='getopt_dll'                      Source='assets\bin\getopt.dll'                      KeyPath='yes'/></Component>
+                            <Component Id='C_pthreadVC3_dll'                  Guid='*'><File Id='pthreadVC3_dll'                  Source='assets\bin\pthreadVC3.dll'                  KeyPath='yes'/></Component>
+                            <Component Id='C_vcruntime140_dll'                Guid='*'><File Id='vcruntime140_dll'                Source='assets\bin\vcruntime140.dll'                KeyPath='yes'/></Component>
+                            <Component Id='C_irecovery_dll'                   Guid='*'><File Id='irecovery_dll'                   Source='assets\bin\irecovery.dll'                   KeyPath='yes'/></Component>
+                            <Component Id='C_irecovery_exe'                   Guid='*'><File Id='irecovery_exe'                   Source='assets\bin\irecovery.exe'                   KeyPath='yes'/></Component>
+                            <Component Id='C_iproxy_exe'                      Guid='*'><File Id='iproxy_exe'                      Source='assets\bin\iproxy.exe'                      KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceactivation_dll'           Guid='*'><File Id='ideviceactivation_dll'           Source='assets\bin\ideviceactivation.dll'           KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceactivation_exe'           Guid='*'><File Id='ideviceactivation_exe'           Source='assets\bin\ideviceactivation.exe'           KeyPath='yes'/></Component>
+                            <Component Id='C_idevicebackup_exe'               Guid='*'><File Id='idevicebackup_exe'               Source='assets\bin\idevicebackup.exe'               KeyPath='yes'/></Component>
+                            <Component Id='C_idevicebackup2_exe'              Guid='*'><File Id='idevicebackup2_exe'              Source='assets\bin\idevicebackup2.exe'              KeyPath='yes'/></Component>
+                            <Component Id='C_idevicecrashreport_exe'          Guid='*'><File Id='idevicecrashreport_exe'          Source='assets\bin\idevicecrashreport.exe'          KeyPath='yes'/></Component>
+                            <Component Id='C_idevicedate_exe'                 Guid='*'><File Id='idevicedate_exe'                 Source='assets\bin\idevicedate.exe'                 KeyPath='yes'/></Component>
+                            <Component Id='C_idevicedebug_exe'                Guid='*'><File Id='idevicedebug_exe'                Source='assets\bin\idevicedebug.exe'                KeyPath='yes'/></Component>
+                            <Component Id='C_idevicedebugserverproxy_exe'     Guid='*'><File Id='idevicedebugserverproxy_exe'     Source='assets\bin\idevicedebugserverproxy.exe'     KeyPath='yes'/></Component>
+                            <Component Id='C_idevicediagnostics_exe'          Guid='*'><File Id='idevicediagnostics_exe'          Source='assets\bin\idevicediagnostics.exe'          KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceenterrecovery_exe'        Guid='*'><File Id='ideviceenterrecovery_exe'        Source='assets\bin\ideviceenterrecovery.exe'        KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceimagemounter_exe'         Guid='*'><File Id='ideviceimagemounter_exe'         Source='assets\bin\ideviceimagemounter.exe'         KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceinfo_exe'                 Guid='*'><File Id='ideviceinfo_exe'                 Source='assets\bin\ideviceinfo.exe'                 KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceinstaller_exe'            Guid='*'><File Id='ideviceinstaller_exe'            Source='assets\bin\ideviceinstaller.exe'            KeyPath='yes'/></Component>
+                            <Component Id='C_idevicename_exe'                 Guid='*'><File Id='idevicename_exe'                 Source='assets\bin\idevicename.exe'                 KeyPath='yes'/></Component>
+                            <Component Id='C_idevicenotificationproxy_exe'    Guid='*'><File Id='idevicenotificationproxy_exe'    Source='assets\bin\idevicenotificationproxy.exe'    KeyPath='yes'/></Component>
+                            <Component Id='C_idevicepair_exe'                 Guid='*'><File Id='idevicepair_exe'                 Source='assets\bin\idevicepair.exe'                 KeyPath='yes'/></Component>
+                            <Component Id='C_ideviceprovision_exe'            Guid='*'><File Id='ideviceprovision_exe'            Source='assets\bin\ideviceprovision.exe'            KeyPath='yes'/></Component>
+                            <Component Id='C_idevicerestore_exe'              Guid='*'><File Id='idevicerestore_exe'              Source='assets\bin\idevicerestore.exe'              KeyPath='yes'/></Component>
+                            <Component Id='C_idevicescreenshot_exe'           Guid='*'><File Id='idevicescreenshot_exe'           Source='assets\bin\idevicescreenshot.exe'           KeyPath='yes'/></Component>
+                            <Component Id='C_plistutil_exe'                   Guid='*'><File Id='plistutil_exe'                   Source='assets\bin\plistutil.exe'                   KeyPath='yes'/></Component>
+                            <Component Id='C_ios_webkit_debug_proxy_exe'      Guid='*'><File Id='ios_webkit_debug_proxy_exe'      Source='assets\bin\ios_webkit_debug_proxy.exe'      KeyPath='yes'/></Component>
+                        </Directory>
+                    </Directory>
                 </Directory>
             </Directory>
 
@@ -107,6 +160,54 @@
             Absent='disallow'>
             <ComponentRef Id='License'/>
             <ComponentRef Id='binary0'/>
+            <ComponentRef Id='C_idevice_id_exe'/>
+            <ComponentRef Id='C_idevicesyslog_exe'/>
+            <ComponentRef Id='C_usbmuxd_exe'/>
+            <ComponentRef Id='C_usbmuxd_dll'/>
+            <ComponentRef Id='C_imobiledevice_dll'/>
+            <ComponentRef Id='C_imobiledevice_net_lighthouse_dll'/>
+            <ComponentRef Id='C_plist_dll'/>
+            <ComponentRef Id='C_libcrypto_dll'/>
+            <ComponentRef Id='C_libssl_dll'/>
+            <ComponentRef Id='C_libusb_1_0_dll'/>
+            <ComponentRef Id='C_libusb0_dll'/>
+            <ComponentRef Id='C_libxml2_dll'/>
+            <ComponentRef Id='C_libcurl_dll'/>
+            <ComponentRef Id='C_iconv2_dll'/>
+            <ComponentRef Id='C_zlib1_dll'/>
+            <ComponentRef Id='C_bz2_dll'/>
+            <ComponentRef Id='C_lzma_dll'/>
+            <ComponentRef Id='C_zip_dll'/>
+            <ComponentRef Id='C_pcre_dll'/>
+            <ComponentRef Id='C_pcreposix_dll'/>
+            <ComponentRef Id='C_readline_dll'/>
+            <ComponentRef Id='C_getopt_dll'/>
+            <ComponentRef Id='C_pthreadVC3_dll'/>
+            <ComponentRef Id='C_vcruntime140_dll'/>
+            <ComponentRef Id='C_irecovery_dll'/>
+            <ComponentRef Id='C_irecovery_exe'/>
+            <ComponentRef Id='C_iproxy_exe'/>
+            <ComponentRef Id='C_ideviceactivation_dll'/>
+            <ComponentRef Id='C_ideviceactivation_exe'/>
+            <ComponentRef Id='C_idevicebackup_exe'/>
+            <ComponentRef Id='C_idevicebackup2_exe'/>
+            <ComponentRef Id='C_idevicecrashreport_exe'/>
+            <ComponentRef Id='C_idevicedate_exe'/>
+            <ComponentRef Id='C_idevicedebug_exe'/>
+            <ComponentRef Id='C_idevicedebugserverproxy_exe'/>
+            <ComponentRef Id='C_idevicediagnostics_exe'/>
+            <ComponentRef Id='C_ideviceenterrecovery_exe'/>
+            <ComponentRef Id='C_ideviceimagemounter_exe'/>
+            <ComponentRef Id='C_ideviceinfo_exe'/>
+            <ComponentRef Id='C_ideviceinstaller_exe'/>
+            <ComponentRef Id='C_idevicename_exe'/>
+            <ComponentRef Id='C_idevicenotificationproxy_exe'/>
+            <ComponentRef Id='C_idevicepair_exe'/>
+            <ComponentRef Id='C_ideviceprovision_exe'/>
+            <ComponentRef Id='C_idevicerestore_exe'/>
+            <ComponentRef Id='C_idevicescreenshot_exe'/>
+            <ComponentRef Id='C_plistutil_exe'/>
+            <ComponentRef Id='C_ios_webkit_debug_proxy_exe'/>
 
             <Feature
                 Id='StartMenuShortcutFeature'
